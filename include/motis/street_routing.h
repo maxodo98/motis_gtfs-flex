@@ -40,4 +40,17 @@ api::Itinerary route(osr::ways const&,
                      osr::bitvec<osr::node_idx_t>& blocked_mem,
                      std::chrono::seconds max = std::chrono::seconds{3600});
 
+std::optional<osr::path> get_path(osr::ways const& w,
+                                  osr::lookup const& l,
+                                  elevators const* e,
+                                  osr::sharing_data const* sharing,
+                                  osr::location const& from,
+                                  osr::location const& to,
+                                  transport_mode_t const transport_mode,
+                                  osr::search_profile const profile,
+                                  nigiri::unixtime_t const start_time,
+                                  osr::cost_t const max,
+                                  street_routing_cache_t& cache,
+                                  osr::bitvec<osr::node_idx_t>& blocked_mem);
+
 }  // namespace motis

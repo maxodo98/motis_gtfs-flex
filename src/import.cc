@@ -49,6 +49,7 @@
 #include "motis/compute_footpaths.h"
 #include "motis/data.h"
 #include "motis/hashes.h"
+#include "motis/street_routing.h"
 #include "motis/tag_lookup.h"
 #include "motis/tt_location_rtree.h"
 
@@ -474,6 +475,17 @@ data import(config const& c, fs::path const& data_path, bool const write) {
     task_it->run(data_path);
     tasks.erase(task_it);
   }
+
+  auto const calc_dur = [&](geo::latlng& from, geo::latlng& to) {
+    street_routing_cache_t rc{};
+    osr::bitvec<osr::node_idx_t> bm{};
+    get_path(*d.w_, *d.l_, nullptr, nullptr,
+             osr::location{from, osr::level_t()},
+             osr::location{to, osr::level_t()}, 0, osr::search_profile::kCar,
+             nigiri::unixtime_t{}, UINT16_MAX, rc, bm);
+  };
+
+  d.tt_->calculate_geometry_durations(calc_dur);
 
   return d;
 }
