@@ -476,13 +476,18 @@ data import(config const& c, fs::path const& data_path, bool const write) {
     tasks.erase(task_it);
   }
 
-  auto const calc_dur = [&](geo::latlng& from, geo::latlng& to) {
+  auto const calc_dur = [&](geo::latlng const& from, geo::latlng const& to) {
     street_routing_cache_t rc{};
     osr::bitvec<osr::node_idx_t> bm{};
-    get_path(*d.w_, *d.l_, nullptr, nullptr,
-             osr::location{from, osr::level_t()},
-             osr::location{to, osr::level_t()}, 0, osr::search_profile::kCar,
-             nigiri::unixtime_t{}, UINT16_MAX, rc, bm);
+    auto path = get_path(
+        *d.w_, *d.l_, nullptr, nullptr, osr::location{from, osr::level_t()},
+        osr::location{to, osr::level_t()}, 0, osr::search_profile::kCar,
+        nigiri::unixtime_t{}, UINT16_MAX, rc, bm);
+    if (path.has_value()) {
+      return nigiri::duration_t{
+          static_cast<int16_t>(std::ceil(path.value().cost_ / 60.0))};
+    }
+    return nigiri::duration_t::max();
   };
 
   d.tt_->calculate_geometry_durations(calc_dur);
