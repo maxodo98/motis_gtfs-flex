@@ -26,4 +26,7 @@ constexpr auto const kElevatorUpdateRadius = 1000.;
 // first nigiri::transport_mode_id_t used for GBFS
 constexpr auto const kGbfsTransportModeIdOffset = 10;
 
+//first nigiri::transport_mode_id_t used for Flex
+constexpr auto const kFlexTransportModeIdOffset = 1000;
+
 }  // namespace motis

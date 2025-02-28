@@ -475,6 +475,8 @@ data import(config const& c, fs::path const& data_path, bool const write) {
     tasks.erase(task_it);
   }
 
+  d.tt_->register_locations_in_geometries(d.location_rtee_);
+
   return d;
 }
 

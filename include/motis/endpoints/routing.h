@@ -14,6 +14,7 @@
 #include "motis/fwd.h"
 #include "motis/match_platforms.h"
 
+#include <motis/constants.h>
 namespace motis::ep {
 
 struct routing {
@@ -39,6 +40,20 @@ struct routing {
                  std::vector<api::ModeEnum> const&,
                  bool wheelchair,
                  std::chrono::seconds max) const;
+
+  nigiri::hash_map<nigiri::location_idx_t,
+                   std::vector<nigiri::routing::td_offset>>
+  get_flex_offsets(osr::location const&,
+                   osr::direction,
+                   nigiri::unixtime_t t,
+                   nigiri::unixtime_t now,
+                   std::chrono::seconds max,
+                   bool inverse_travel = false) const;
+
+  static nigiri::transport_mode_id_t get_flex_transport_mode_id(
+      std::uint32_t const shift) {
+    return static_cast<std::int32_t>(kFlexTransportModeIdOffset + shift);
+  }
 
   std::pair<std::vector<api::Itinerary>, nigiri::duration_t> route_direct(
       elevators const*,

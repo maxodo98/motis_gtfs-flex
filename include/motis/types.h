@@ -53,4 +53,17 @@ struct elevator {
 
 using rtt_ptr_t = std::shared_ptr<nigiri::rt_timetable>;
 
+struct flex_id {
+  nigiri::geometry_idx_t start_;
+  nigiri::geometry_idx_t target_;
+  nigiri::trip_idx_t trip_;
+};
+
+struct flex_result {
+  nigiri::duration_t booking_duration;
+  nigiri::unixtime_t max_time;
+  nigiri::stop_window window;
+  bool skip;
+};
+
 }  // namespace motis

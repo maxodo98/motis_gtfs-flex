@@ -10,12 +10,15 @@ api::ModeEnum to_mode(osr::mode const m) {
     case osr::mode::kWheelchair: return api::ModeEnum::WALK;
     case osr::mode::kBike: return api::ModeEnum::BIKE;
     case osr::mode::kCar: return api::ModeEnum::CAR;
+    case osr::mode::kFlex: return api::ModeEnum::FLEX;
   }
   std::unreachable();
 }
 
 osr::search_profile to_profile(api::ModeEnum const m, bool const wheelchair) {
   switch (m) {
+    case api::ModeEnum::FLEX:
+      return osr::search_profile::kFlex;
     case api::ModeEnum::WALK:
       return wheelchair ? osr::search_profile::kWheelchair
                         : osr::search_profile::kFoot;

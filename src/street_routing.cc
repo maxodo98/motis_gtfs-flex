@@ -21,6 +21,18 @@ namespace motis {
 
 std::optional<osr::path> get_path(osr::ways const& w,
                                   osr::lookup const& l,
+                                  osr::location const& from,
+                                  osr::location const& to,
+                                  osr::search_profile const profile,
+                                  nigiri::unixtime_t const start_time,
+                                  osr::cost_t const max) {
+  auto cache = street_routing_cache_t{};
+  auto blocked = osr::bitvec<osr::node_idx_t>{};
+  return  get_path(w, l, nullptr, nullptr, from, to, 0, profile, start_time, max, cache, blocked);
+}
+
+std::optional<osr::path> get_path(osr::ways const& w,
+                                  osr::lookup const& l,
                                   elevators const* e,
                                   osr::sharing_data const* sharing,
                                   osr::location const& from,
@@ -249,6 +261,9 @@ api::Itinerary route(osr::ways const& w,
       return sharing_data.value().get_node_pos(n);
     }
   };
+
+  std::cout << "FROM: " << from.lat_ << ", " << from.lon_ << std::endl;
+  std::cout << "TO: " << to.lat_ << ", " << to.lon_ << std::endl;
 
   auto const path = [&]() {
     auto p = get_path(

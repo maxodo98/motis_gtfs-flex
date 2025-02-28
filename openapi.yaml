@@ -1152,6 +1152,7 @@ components:
         - RENTAL
         - CAR
         - CAR_PARKING
+        - FLEX
         # === Transit ===
         - TRANSIT
         - TRAM

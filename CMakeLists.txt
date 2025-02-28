@@ -22,25 +22,25 @@ if (MOTIS_MIMALLOC)
     set(ADR_MIMALLOC ON)
     set(OSR_MIMALLOC ON)
     set(TILES_MIMALLOC ON)
-    if(WIN32)
+    if (WIN32)
         set(MI_BUILD_SHARED ON)
-    endif()
-endif()
+    endif ()
+endif ()
 
 include(cmake/buildcache.cmake)
 include(cmake/pkg.cmake)
 
 if (MOTIS_MIMALLOC)
-    if(WIN32)
+    if (WIN32)
         set(motis-mimalloc-lib mimalloc)
         target_link_libraries(cista INTERFACE mimalloc)
-    else()
+    else ()
         set(motis-mimalloc-lib mimalloc-obj)
         target_link_libraries(cista INTERFACE mimalloc-static)
-    endif()
+    endif ()
     target_compile_definitions(cista INTERFACE CISTA_USE_MIMALLOC=1)
     target_compile_definitions(boost INTERFACE BOOST_ASIO_DISABLE_STD_ALIGNED_ALLOC=1)
-endif()
+endif ()
 
 # --- LINT ---
 option(ICC_LINT "Run clang-tidy with the compiler." OFF)
@@ -109,29 +109,29 @@ target_include_directories(motislib PUBLIC include)
 target_compile_features(motislib PUBLIC cxx_std_23)
 target_compile_options(motislib PRIVATE ${motis-compile-options})
 target_link_libraries(motislib
-    nigiri
-    osr
-    adr
-    boost-json
-    motis-api
-    reflectcpp
-    web-server
-    tiles
-    pbf_sdf_fonts_res
-    pbf_sdf_fonts_res-res
-    ssl
-    crypto
-    tg
-    lz4_static
+        nigiri
+        osr
+        adr
+        boost-json
+        motis-api
+        reflectcpp
+        web-server
+        tiles
+        pbf_sdf_fonts_res
+        pbf_sdf_fonts_res-res
+        ssl
+        crypto
+        tg
+        lz4_static
 )
 
 
 # --- EXE ---
 execute_process(
-    COMMAND git describe --always --tags --dirty=-dirty
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-    OUTPUT_VARIABLE motis-git-tag
-    OUTPUT_STRIP_TRAILING_WHITESPACE
+        COMMAND git describe --always --tags --dirty=-dirty
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        OUTPUT_VARIABLE motis-git-tag
+        OUTPUT_STRIP_TRAILING_WHITESPACE
 )
 file(GLOB_RECURSE motis-files exe/*.cc)
 add_executable(motis ${motis-files})
@@ -139,16 +139,16 @@ target_compile_features(motis PUBLIC cxx_std_23)
 target_compile_options(motis PRIVATE ${motis-compile-options})
 set_source_files_properties(exe/main.cc PROPERTIES COMPILE_DEFINITIONS MOTIS_VERSION="${motis-git-tag}")
 target_link_libraries(motis
-    motislib
-    web-server
-    adr
-    fmt::fmt
-    rtree
-    geo
-    cista
-    ianatzdb-res
-    pbf_sdf_fonts_res-res
-    tiles_server_res-res
+        motislib
+        web-server
+        adr
+        fmt::fmt
+        rtree
+        geo
+        cista
+        ianatzdb-res
+        pbf_sdf_fonts_res-res
+        tiles_server_res-res
 )
 
 
@@ -167,13 +167,13 @@ target_compile_options(motis-test PRIVATE ${motis-compile-options})
 
 # --- TILES ---
 set_property(
-    TARGET motis tiles tiles-import-library
-    APPEND PROPERTY COMPILE_DEFINITIONS TILES_GLOBAL_PROGRESS_TRACKER=1)
+        TARGET motis tiles tiles-import-library
+        APPEND PROPERTY COMPILE_DEFINITIONS TILES_GLOBAL_PROGRESS_TRACKER=1)
 
 # --- MIMALLOC ---
 if (MOTIS_MIMALLOC)
     target_link_libraries(motis ${motis-mimalloc-lib})
-    if(WIN32)
+    if (WIN32)
         add_custom_command(
                 TARGET motis POST_BUILD
                 COMMAND "${CMAKE_COMMAND}" -E copy
@@ -188,8 +188,8 @@ if (MOTIS_MIMALLOC)
                 $<TARGET_FILE_DIR:motis>
                 COMMENT "Copy mimalloc-redirect.dll to output directory"
         )
-    endif()
-endif()
+    endif ()
+endif ()
 
 
 # --- UI ---
@@ -199,8 +199,8 @@ add_custom_target(motis-web-ui
         VERBATIM
 )
 
-foreach(t mimalloc adr osr nigiri gtfsrt
+foreach (t mimalloc adr osr nigiri gtfsrt
         geo tiles tiles-import-library
         motis motis-api motislib)
     target_compile_options(${t} PUBLIC ${MOTIS_TARGET_FLAGS})
-endforeach()
+endforeach ()
