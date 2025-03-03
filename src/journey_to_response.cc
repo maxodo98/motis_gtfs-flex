@@ -176,12 +176,16 @@ api::Itinerary journey_to_response(osr::ways const* w,
             [&](n::routing::offset const x) {
               append(route(
                   *w, *l, gbfs_rd, e, from, to,
-                  x.transport_mode_id_ >= kGbfsTransportModeIdOffset
-                      ? api::ModeEnum::RENTAL
-                      : to_mode(osr::search_profile{
-                            static_cast<std::uint8_t>(x.transport_mode_id_)}),
+                  x.transport_mode_id_ >= kFlexTransportModeIdOffset
+                      ? api::ModeEnum::FLEX
+                      : (x.transport_mode_id_ >= kGbfsTransportModeIdOffset
+                             ? api::ModeEnum::RENTAL
+                             : to_mode(osr::search_profile{
+                                   static_cast<std::uint8_t>(
+                                       x.transport_mode_id_)})),
                   wheelchair, j_leg.dep_time_, j_leg.arr_time_,
-                  x.transport_mode_id_ >= kGbfsTransportModeIdOffset
+                  kFlexTransportModeIdOffset > x.transport_mode_id_ &&
+                          x.transport_mode_id_ >= kGbfsTransportModeIdOffset
                       ? gbfs_rd.get_products_ref(x.transport_mode_id_)
                       : gbfs::gbfs_products_ref{},
                   cache, blocked_mem,

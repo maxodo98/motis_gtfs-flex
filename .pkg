@@ -1,7 +1,7 @@
 [nigiri]
   url=git@github.com:maxodo98/nigiri_gtfs-flex.git
   branch=flex_reconstruct
-  commit=1926455e8cdb469462791641f7baf38c80b1495a
+  commit=cba54bb80fb99a6aaec6cf05eaea1da4102de5ff
 [cista]
   url=git@github.com:felixguendling/cista.git
   branch=master

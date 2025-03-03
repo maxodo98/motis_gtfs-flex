@@ -666,7 +666,7 @@ TEST(motis, create_offsets) {
 
   // Einfachste Fahrt mit erster und letzter Meile
   auto const routing = utl::init_from<ep::routing>(d).value();
-  openapi::now_testwise = date::sys_days{date::January / 01 / 2025} + 7h + 0min;
+  openapi::now_test = date::sys_days{date::January / 01 / 2025} + 7h + 0min;
   // FROM: 49.86612067335565,8.65312725611551
   // TO: 49.86734352295011,8.661965445062833
   auto plan_response = routing(
@@ -677,7 +677,7 @@ TEST(motis, create_offsets) {
       "&directModes="
       "&useRoutedTransfers=false"
       "&transferModes=RAIL"
-      "&preTransitModes=WALK"
+      "&preTransitModes=FLEX"
       "&postTransitModes=WALK");
 
   auto ss = std::stringstream{};
