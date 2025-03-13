@@ -10,6 +10,7 @@
 #include "geo/polyline_format.h"
 
 #include "nigiri/common/split_duration.h"
+#include "nigiri/flex.h"
 #include "nigiri/routing/journey.h"
 #include "nigiri/rt/frun.h"
 #include "nigiri/rt/gtfsrt_resolve_run.h"
@@ -189,6 +190,23 @@ api::Itinerary journey_to_response(osr::ways const* w,
                       ? gbfs_rd.get_products_ref(x.transport_mode_id_)
                       : gbfs::gbfs_products_ref{},
                   cache, blocked_mem,
+                  std::chrono::duration_cast<std::chrono::seconds>(
+                      j_leg.arr_time_ - j_leg.dep_time_) +
+                      std::chrono::minutes{5}));
+            },
+            [&](n::flex const x) {
+              append(route(
+                  *w, *l, gbfs_rd, e, from, to,
+                  std::string(tt.geometry_ids_[x.from_geometry_].begin(),
+                              tt.geometry_ids_[x.from_geometry_].end()),
+                  std::string(tt.geometry_ids_[x.target_geometry_].begin(),
+                              tt.geometry_ids_[x.target_geometry_].end()),
+                  std::string(
+                      tt.trip_id_strings_[tt.trip_ids_[x.trip_][0]].begin(),
+                      tt.trip_id_strings_[tt.trip_ids_[x.trip_][0]].end()),
+                  api::ModeEnum::FLEX, wheelchair, j_leg.dep_time_,
+                  j_leg.arr_time_, gbfs::gbfs_products_ref{}, cache,
+                  blocked_mem, true,
                   std::chrono::duration_cast<std::chrono::seconds>(
                       j_leg.arr_time_ - j_leg.dep_time_) +
                       std::chrono::minutes{5}));

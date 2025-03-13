@@ -1594,6 +1594,10 @@ components:
             $ref: '#/components/schemas/StepInstruction'
         rental:
           $ref: '#/components/schemas/Rental'
+        from_geometry:
+          type: string
+        to_geometry:
+          type: string
 
     Itinerary:
       type: object

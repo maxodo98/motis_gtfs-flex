@@ -131,7 +131,7 @@ constexpr auto const kFastaJson = R"__(
 ]
 )__"sv;
 
-constexpr auto const kGTFS = R"(
+constexpr auto const kGTFS_simple = R"(
 # agency.txt
 agency_id,agency_name,agency_url,agency_timezone
 DB,Deutsche Bahn,https://deutschebahn.com,Europe/Berlin
@@ -327,7 +327,7 @@ TEST(motis, routing) {
           config::timetable{
               .first_day_ = "2019-05-01",
               .num_days_ = 2,
-              .datasets_ = {{"test", {.path_ = std::string{kGTFS}}}}},
+              .datasets_ = {{"test", {.path_ = std::string{kGTFS_simple}}}}},
       .gbfs_ = {{.feeds_ = {{"CAB", {.url_ = "./test/resources/gbfs"}}}}},
       .street_routing_ = true,
       .osr_footpath_ = true,

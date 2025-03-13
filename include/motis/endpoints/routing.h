@@ -43,12 +43,21 @@ struct routing {
 
   nigiri::hash_map<nigiri::location_idx_t,
                    std::vector<nigiri::routing::td_offset>>
-  get_flex_offsets(osr::location const&,
-                   osr::direction,
-                   nigiri::unixtime_t t,
+  get_flex_offsets(osr::location const& pos,
+                   osr::direction dir,
+                   nigiri::interval<nigiri::unixtime_t> t,
                    nigiri::unixtime_t now,
                    std::chrono::seconds max,
-                   bool inverse_travel = false) const;
+                   bool inverse_pos) const;
+
+  // nigiri::hash_map<nigiri::location_idx_t,
+  //                  std::vector<nigiri::routing::td_offset>>
+  // get_flex_offsets(osr::location const&,
+  //                  osr::direction,
+  //                  nigiri::unixtime_t t,
+  //                  nigiri::unixtime_t now,
+  //                  std::chrono::seconds max,
+  //                  bool inverse_travel = false) const;
 
   static nigiri::transport_mode_id_t get_flex_transport_mode_id(
       std::uint32_t const shift) {
@@ -65,6 +74,7 @@ struct routing {
       std::optional<std::vector<api::RentalPropulsionTypeEnum>> const&,
       std::optional<std::vector<std::string>> const& rental_providers,
       nigiri::unixtime_t start_time,
+      bool arriveBy,
       bool wheelchair,
       std::chrono::seconds max) const;
 

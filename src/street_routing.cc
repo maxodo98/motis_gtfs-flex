@@ -28,7 +28,8 @@ std::optional<osr::path> get_path(osr::ways const& w,
                                   osr::cost_t const max) {
   auto cache = street_routing_cache_t{};
   auto blocked = osr::bitvec<osr::node_idx_t>{};
-  return  get_path(w, l, nullptr, nullptr, from, to, 0, profile, start_time, max, cache, blocked);
+  return get_path(w, l, nullptr, nullptr, from, to, 0, profile, start_time, max,
+                  cache, blocked);
 }
 
 std::optional<osr::path> get_path(osr::ways const& w,
@@ -231,14 +232,18 @@ api::Itinerary route(osr::ways const& w,
                      elevators const* e,
                      api::Place const& from,
                      api::Place const& to,
-                     api::ModeEnum const mode,
-                     bool const wheelchair,
-                     n::unixtime_t const start_time,
-                     std::optional<n::unixtime_t> const end_time,
-                     gbfs::gbfs_products_ref const prod_ref,
+                     std::string const& from_geo,
+                     std::string const& to_geo,
+                     std::string const& trip,
+                     api::ModeEnum mode,
+                     bool wheelchair,
+                     nigiri::unixtime_t start_time,
+                     std::optional<nigiri::unixtime_t> end_time,
+                     gbfs::gbfs_products_ref prod_ref,
                      street_routing_cache_t& cache,
                      osr::bitvec<osr::node_idx_t>& blocked_mem,
-                     std::chrono::seconds const max) {
+                     bool is_flex,
+                     std::chrono::seconds max) {
   auto const profile = to_profile(mode, wheelchair);
   utl::verify(
       profile != osr::search_profile::kBikeSharing || gbfs_rd.has_data(),
@@ -360,6 +365,7 @@ api::Itinerary route(osr::ways const& w,
             .startTime_ = pred_end_time,
             .endTime_ = is_last_leg && end_time ? *end_time : t,
             .distance_ = dist,
+            .tripId_ = is_flex ? std::optional{trip} : std::nullopt,
             .legGeometry_ = to_polyline<7>(concat),
             .steps_ = get_step_instructions(w, get_location(from),
                                             get_location(to), range),
@@ -367,7 +373,9 @@ api::Itinerary route(osr::ways const& w,
                            ? std::optional{sharing_data->get_rental(
                                  from_additional_node ? range.front().from_
                                                       : range.back().to_)}
-                           : std::nullopt});
+                           : std::nullopt,
+            .from_geometry_ = is_flex ? std::optional{from_geo} : std::nullopt,
+            .to_geometry_ = is_flex ? std::optional{to_geo} : std::nullopt});
 
         leg.from_.departure_ = leg.from_.scheduledDeparture_ =
             leg.scheduledStartTime_ = leg.startTime_;
@@ -379,6 +387,24 @@ api::Itinerary route(osr::ways const& w,
       });
 
   return itinerary;
+}
+
+api::Itinerary route(osr::ways const& w,
+                     osr::lookup const& l,
+                     gbfs::gbfs_routing_data& gbfs_rd,
+                     elevators const* e,
+                     api::Place const& from,
+                     api::Place const& to,
+                     api::ModeEnum const mode,
+                     bool const wheelchair,
+                     n::unixtime_t const start_time,
+                     std::optional<n::unixtime_t> const end_time,
+                     gbfs::gbfs_products_ref const prod_ref,
+                     street_routing_cache_t& cache,
+                     osr::bitvec<osr::node_idx_t>& blocked_mem,
+                     std::chrono::seconds const max) {
+  return route(w, l, gbfs_rd, e, from, to, "", "", "", mode, wheelchair,
+               start_time, end_time, prod_ref, cache, blocked_mem, false, max);
 }
 
 }  // namespace motis
