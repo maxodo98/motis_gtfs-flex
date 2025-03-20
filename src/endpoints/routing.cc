@@ -1,6 +1,7 @@
 #include "motis/endpoints/routing.h"
 
 #include <algorithm>
+#include <unordered_set>
 
 #include "boost/thread/tss.hpp"
 
@@ -130,7 +131,11 @@ td_offsets_t routing::get_flex_offsets(osr::location const& pos,
                                        nigiri::unixtime_t now,
                                        std::chrono::seconds max,
                                        bool inverse_pos) const {
+  UTL_START_TIMING(timer_flex_offsets);
   if (!loc_tree_ || !tt_ || !w_) {
+    UTL_STOP_TIMING(timer_flex_offsets);
+    std::cout << "\tlfex offset creation: " << UTL_TIMING_MS(timer_flex_offsets)
+              << std::endl;
     return {};
   }
 
@@ -175,7 +180,7 @@ td_offsets_t routing::get_flex_offsets(osr::location const& pos,
               booking_time +=
                   nigiri::duration_t{booking_rule.prior_notice_duration_min_};
               if (booking_rule.prior_notice_duration_max_ != 0) {
-                max_time = now + nigiri::duration_t{
+                max_time = now + nigiri::i32_minutes{
                                      booking_rule.prior_notice_duration_max_};
               }
               break;
@@ -256,6 +261,21 @@ td_offsets_t routing::get_flex_offsets(osr::location const& pos,
             max_arr_time = max_time;
             dropoff_window = window;
           }
+
+          // efficency? maybe?
+          //  auto const stops_within_target_flex =
+          //      tt_->geometry_locations_within_[target_flex_stop];
+          //  auto const stops_in_radius = loc_tree_->in_radius(
+          //      pos.pos_, get_max_distance(osr::search_profile::kFlex, max));
+          //  std::vector<nigiri::location_idx_t> stops{};
+          //  std::unordered_set vec1(stops_within_target_flex.begin(),
+          //                          stops_within_target_flex.end());
+          //  for (auto const& s : stops_in_radius) {
+          //    if (vec1.erase(s)) {
+          //      stops.push_back(s);
+          //    }
+          //  }
+
           for (auto const stop :
                tt_->geometry_locations_within_[target_flex_stop]) {
             auto const target_pos = tt_->locations_.coordinates_[stop];
@@ -322,6 +342,9 @@ td_offsets_t routing::get_flex_offsets(osr::location const& pos,
     current_day += nigiri::duration_t{24 * 60};
     ++day;
   }
+  UTL_STOP_TIMING(timer_flex_offsets);
+  std::cout << "\tlfex offset creation: " << UTL_TIMING_MS(timer_flex_offsets)
+            << std::endl;
   return flex_offsets;
 }
 
@@ -834,7 +857,7 @@ std::pair<std::vector<api::Itinerary>, n::duration_t> routing::route_direct(
               booking_time +=
                   nigiri::duration_t{booking_rule.prior_notice_duration_min_};
               if (booking_rule.prior_notice_duration_max_ != 0) {
-                max_time = now + nigiri::duration_t{
+                max_time = now + nigiri::i32_minutes{
                                      booking_rule.prior_notice_duration_max_};
               }
               break;
@@ -1340,12 +1363,16 @@ api::plan_response routing::operator()(boost::urls::url_view const& url) const {
                     {"n_td_start_offsets", q.td_start_.size()},
                     {"n_td_dest_offsets", q.td_dest_.size()}};
 
+    UTL_START_TIMING(timer_raptor);
     auto const r = n::routing::raptor_search(
         *tt_, rtt, *search_state, *raptor_state, std::move(q),
         query.arriveBy_ ? n::direction::kBackward : n::direction::kForward,
         query.timeout_.has_value()
             ? std::optional<std::chrono::seconds>{*query.timeout_}
             : std::nullopt);
+    UTL_STOP_TIMING(timer_raptor);
+    std::cout << "\traptor duration: " << UTL_TIMING_MS(timer_raptor)
+              << std::endl;
 
     return {
         .debugOutput_ = join(std::move(query_stats), r.search_stats_.to_map(),

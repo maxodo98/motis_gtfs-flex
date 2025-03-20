@@ -151,7 +151,18 @@ target_link_libraries(motis
         tiles_server_res-res
 )
 
-
+# --- BENCHMARK ---
+configure_file(
+        ${CMAKE_CURRENT_SOURCE_DIR}/benchmark/benchmark_dir.h.in
+        ${CMAKE_CURRENT_BINARY_DIR}/benchmark/benchmark_dir.h.in
+)
+file(GLOB_RECURSE motis-benchmark-files benchmark/*.cc)
+add_executable(motis-benchmark ${motis-benchmark-files})
+set_target_properties(motis-benchmark PROPERTIES
+        VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+)
+target_link_libraries(motis-benchmark motislib gtest web-server ianatzdb-res)
+target_compile_options(motis-benchmark PRIVATE ${motis-compile-options})
 # --- TEST ---
 add_library(motis-generated INTERFACE)
 target_include_directories(motis-generated INTERFACE ${CMAKE_CURRENT_BINARY_DIR}/generated)

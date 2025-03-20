@@ -680,6 +680,8 @@ TEST(motis, direct_depature) {
 }
 
 TEST(motis, direct_arrival) {
+  std::cout << "Current working directory: " << std::filesystem::current_path()
+            << std::endl;
   auto ec = std::error_code{};
   std::filesystem::remove_all("test/data", ec);
 
