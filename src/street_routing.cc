@@ -267,9 +267,6 @@ api::Itinerary route(osr::ways const& w,
     }
   };
 
-  std::cout << "FROM: " << from.lat_ << ", " << from.lon_ << std::endl;
-  std::cout << "TO: " << to.lat_ << ", " << to.lon_ << std::endl;
-
   auto const path = [&]() {
     auto p = get_path(
         w, l, e, sharing_data ? &sharing_data->sharing_data_ : nullptr,
