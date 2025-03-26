@@ -1,7 +1,7 @@
 <script lang="ts">
 	import ArrowRight from 'lucide-svelte/icons/arrow-right';
-	import type { Itinerary, Leg } from '$lib/openapi';
-	import Time from '../lib/Time.svelte';
+	import type { FareProduct, Itinerary, Leg } from '$lib/openapi';
+	import Time from '$lib/Time.svelte';
 	import { routeBorderColor, routeColor } from '$lib/modeStyle';
 	import { formatDurationSec, formatDistanceMeters } from '$lib/formatDuration';
 	import { Button } from '$lib/components/ui/button';
@@ -31,15 +31,22 @@
 )}
 	<Time
 		variant="schedule"
-		class="font-semibold mr-2"
+		class="font-semibold w-16"
+		queriedTime={timestamp}
 		{isRealtime}
 		{timestamp}
 		{scheduledTimestamp}
 	/>
-	<Time variant="realtime" class="font-semibold" {isRealtime} {timestamp} {scheduledTimestamp} />
+	<Time
+		variant="realtime"
+		class="font-semibold w-16"
+		{isRealtime}
+		{timestamp}
+		{scheduledTimestamp}
+	/>
 	{#if stopId}
 		<Button
-			class="col-span-5 mr-6 text-lg justify-normal text-wrap text-left"
+			class="text-[length:inherit] leading-none justify-normal text-wrap text-left"
 			variant="link"
 			onclick={() => {
 				onClickStop(name, stopId, new Date(timestamp));
@@ -48,7 +55,7 @@
 			{name}
 		</Button>
 	{:else}
-		<span class="col-span-5 mr-6">{name}</span>
+		<span>{name}</span>
 	{/if}
 {/snippet}
 
@@ -57,7 +64,7 @@
 		<span class="ml-6">
 			{formatDurationSec(l.duration)}
 			{getModeName(l)}
-			{formatDistanceMeters(Math.round(l.distance!))}
+			{formatDistanceMeters(l.distance)}
 		</span>
 		{#if l.rental && l.rental.systemName}
 			<span class="ml-6">
@@ -72,19 +79,81 @@
 	</div>
 {/snippet}
 
+{#snippet productInfo(product: FareProduct)}
+	{product.name}
+	({product.amount}
+	{product.currency})
+	{#if product.riderCategory}
+		for
+		{#if product.riderCategory.eligibilityUrl}
+			<a
+				class:italic={product.riderCategory.isDefaultFareCategory}
+				class="underline"
+				href={product.riderCategory.eligibilityUrl}
+			>
+				{product.riderCategory.riderCategoryName}
+			</a>
+		{:else}
+			<span class:italic={product.riderCategory.isDefaultFareCategory}>
+				{product.riderCategory.riderCategoryName}
+			</span>
+		{/if}
+	{/if}
+	{#if product.media}
+		as
+		{#if product.media.fareMediaName}
+			{product.media.fareMediaName}
+		{:else}
+			{product.media.fareMediaType}
+		{/if}
+	{/if}
+{/snippet}
+
+{#snippet ticketInfo(prevTransitLeg: Leg | undefined, l: Leg)}
+	{#if itinerary.fareTransfers != undefined && l.fareTransferIndex != undefined && l.effectiveFareLegIndex != undefined}
+		{@const fareTransfer = itinerary.fareTransfers[l.fareTransferIndex]}
+		{@const includedInTransfer =
+			fareTransfer.rule == 'AB' || (fareTransfer.rule == 'A_AB' && l.effectiveFareLegIndex !== 0)}
+		<div class="list-inside pl-1 md:pl-4 my-8 text-xs font-bold">
+			{#if includedInTransfer || (prevTransitLeg && prevTransitLeg.fareTransferIndex === l.fareTransferIndex && prevTransitLeg.effectiveFareLegIndex === l.effectiveFareLegIndex)}
+				{t.includedInTicket}
+			{:else}
+				{@const productOptions = fareTransfer.effectiveFareLegProducts[l.effectiveFareLegIndex]}
+				{#if productOptions.length > 1}
+					<div class="mb-1">{t.ticketOptions}:</div>
+				{/if}
+				<ul
+					class:list-disc={productOptions.length > 1}
+					class:list-inside={productOptions.length > 1}
+				>
+					{#each productOptions as product}
+						<li>
+							{#if productOptions.length == 1}
+								{t.ticket}
+							{/if}
+							{@render productInfo(product)}
+						</li>
+					{/each}
+				</ul>
+			{/if}
+		</div>
+	{/if}
+{/snippet}
+
 <div class="text-lg">
 	{#each itinerary.legs as l, i}
 		{@const isLast = i == itinerary.legs.length - 1}
 		{@const isLastPred = i == itinerary.legs.length - 2}
 		{@const pred = i == 0 ? undefined : itinerary.legs[i - 1]}
 		{@const next = isLast ? undefined : itinerary.legs[i + 1]}
+		{@const prevTransitLeg = itinerary.legs.slice(0, i).find((l) => l.tripId)}
 
 		{#if l.routeShortName}
 			<div class="w-full flex justify-between items-center space-x-1">
 				<Route {onClickTrip} {l} />
-				{#if pred && (pred.from.track || pred.duration !== 0)}
-					<div class="border-t w-full h-0"></div>
-					<div class="text-sm text-muted-foreground text-nowrap px-2">
+				{#if pred && (pred.from.track || pred.duration !== 0) && (i != 1 || pred.routeShortName)}
+					<div class="border-t h-0 grow shrink"></div>
+					<div class="text-sm text-muted-foreground leading-none px-2 text-center">
 						{#if pred.from.track}
 							{t.arrivalOnTrack} {pred.from.track}{pred.duration ? ',' : ''}
 						{/if}
@@ -94,9 +163,20 @@
 						{#if pred.distance}
 							({Math.round(pred.distance)} m)
 						{/if}
+						{#if prevTransitLeg?.fareTransferIndex != undefined && itinerary.fareTransfers && itinerary.fareTransfers[prevTransitLeg.fareTransferIndex].transferProduct}
+							{@const transferProduct =
+								itinerary.fareTransfers[prevTransitLeg.fareTransferIndex].transferProduct!}
+							{#if prevTransitLeg.effectiveFareLegIndex === 0 && l.effectiveFareLegIndex === 1}
+								<br />
+								<span class="text-xs font-bold text-foreground">
+									Ticket: {pred.effectiveFareLegIndex}
+									{@render productInfo(transferProduct)}
+								</span>
+							{/if}
+						{/if}
 					</div>
 				{/if}
-				<div class="border-t w-full h-0"></div>
+				<div class="border-t h-0 grow shrink"></div>
 				{#if l.from.track}
 					<div class="text-nowrap border rounded-xl px-2">
 						{t.track}
@@ -106,7 +186,7 @@
 			</div>
 
 			<div class="pt-4 pl-6 border-l-4 left-4 relative" style={routeBorderColor(l)}>
-				<div class="grid gap-y-6 grid-cols-7 items-center">
+				<div class="grid gap-y-6 grid-cols-[max-content_max-content_auto] items-center">
 					{@render stopTimes(
 						l.startTime,
 						l.scheduledStartTime,
@@ -115,17 +195,19 @@
 						l.from.stopId
 					)}
 				</div>
-				<div class="mt-2 flex items-center text-muted-foreground">
+				<div class="mt-2 flex items-center text-muted-foreground leading-none">
 					<ArrowRight class="stroke-muted-foreground h-4 w-4" />
 					<span class="ml-1">{l.headsign}</span>
 				</div>
 				{#if l.intermediateStops?.length === 0}
-					<div class="py-12 pl-8 flex items-center text-muted-foreground">
+					<div class="py-8 pl-1 md:pl-4 flex items-center text-muted-foreground">
 						{t.tripIntermediateStops(0)}
 					</div>
+					{@render ticketInfo(prevTransitLeg, l)}
 				{:else}
-					<details class="[&_svg]:open:-rotate-180">
-						<summary class="py-12 pl-8 flex items-center text-muted-foreground">
+					{@render ticketInfo(prevTransitLeg, l)}
+					<details class="[&_svg]:open:-rotate-180 my-2">
+						<summary class="py-8 pl-1 md:pl-4 flex items-center text-muted-foreground">
 							<svg
 								class="rotate-0 transform transition-all duration-300"
 								fill="none"
@@ -144,7 +226,7 @@
 								({formatDurationSec(l.duration)})
 							</span>
 						</summary>
-						<div class="mb-6 grid gap-y-6 grid-cols-7 items-center">
+						<div class="mb-1 grid gap-y-4 grid-cols-[max-content_max-content_auto] items-center">
 							{#each l.intermediateStops! as s}
 								{@render stopTimes(s.arrival!, s.scheduledArrival!, l.realTime, s.name!, s.stopId)}
 							{/each}
@@ -153,7 +235,7 @@
 				{/if}
 
 				{#if !isLast && !(isLastPred && next!.duration === 0)}
-					<div class="grid gap-y-6 grid-cols-7 items-center pb-3">
+					<div class="grid gap-y-6 grid-cols-[max-content_max-content_auto] items-center pb-3">
 						{@render stopTimes(
 							l.endTime!,
 							l.scheduledEndTime!,
@@ -164,15 +246,15 @@
 					</div>
 				{/if}
 
-				{#if isLast}
+				{#if isLast || (isLastPred && next!.duration === 0)}
 					<!-- fill visual gap -->
-					<div class="pb-1"></div>
+					<div class="pb-2"></div>
 				{/if}
 			</div>
 		{:else if !(isLast && l.duration === 0) && ((i == 0 && l.duration !== 0) || !next || !next.routeShortName || l.mode != 'WALK' || (pred && (pred.mode == 'BIKE' || pred.mode == 'RENTAL')))}
 			<Route {onClickTrip} {l} />
 			<div class="pt-4 pl-6 border-l-4 left-4 relative" style={routeBorderColor(l)}>
-				<div class="grid gap-y-6 grid-cols-7 items-center">
+				<div class="grid gap-y-6 grid-cols-[max-content_max-content_auto] items-center">
 					{@render stopTimes(
 						l.startTime,
 						l.scheduledStartTime,
@@ -183,16 +265,21 @@
 				</div>
 				{@render streetLeg(l)}
 				{#if !isLast}
-					<div class="grid gap-y-6 grid-cols-7 items-center pb-4">
+					<div class="grid gap-y-6 grid-cols-[max-content_max-content_auto] items-center pb-4">
 						{@render stopTimes(l.endTime, l.scheduledEndTime, l.realTime, l.to.name, l.to.stopId)}
 					</div>
 				{/if}
 			</div>
 		{/if}
 	{/each}
-	<div class="flex">
-		<div class="relative left-[13px] w-3 h-3 rounded-full" style={routeColor(lastLeg!)}></div>
-		<div class="relative left-3 bottom-[7px] pl-6 grid gap-y-6 grid-cols-7 items-center">
+	<div class="relative pl-6 left-4">
+		<div
+			class="absolute left-[-6px] top-[0px] w-[15px] h-[15px] rounded-full"
+			style={routeColor(lastLeg!)}
+		></div>
+		<div
+			class="relative left-[2.5px] bottom-[7px] grid gap-y-6 grid-cols-[max-content_max-content_auto] items-center"
+		>
 			{@render stopTimes(
 				lastLeg!.endTime,
 				lastLeg!.scheduledEndTime,

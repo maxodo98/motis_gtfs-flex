@@ -116,6 +116,7 @@ export type PedestrianProfile = 'FOOT' | 'WHEELCHAIR';
  * - `RENTAL` Experimental. Expect unannounced breaking changes (without version bumps).
  * - `CAR`
  * - `CAR_PARKING`
+ * - `ODM`
  *
  * # Transit modes
  *
@@ -135,7 +136,7 @@ export type PedestrianProfile = 'FOOT' | 'WHEELCHAIR';
  * - `REGIONAL_RAIL`: regional train
  *
  */
-export type Mode = 'WALK' | 'BIKE' | 'RENTAL' | 'CAR' | 'CAR_PARKING' | 'TRANSIT' | 'TRAM' | 'SUBWAY' | 'FERRY' | 'AIRPLANE' | 'METRO' | 'BUS' | 'COACH' | 'RAIL' | 'HIGHSPEED_RAIL' | 'LONG_DISTANCE' | 'NIGHT_RAIL' | 'REGIONAL_FAST_RAIL' | 'REGIONAL_RAIL' | 'OTHER';
+export type Mode = 'WALK' | 'BIKE' | 'RENTAL' | 'CAR' | 'CAR_PARKING' | 'ODM' | 'TRANSIT' | 'TRAM' | 'SUBWAY' | 'FERRY' | 'AIRPLANE' | 'METRO' | 'BUS' | 'COACH' | 'RAIL' | 'HIGHSPEED_RAIL' | 'LONG_DISTANCE' | 'NIGHT_RAIL' | 'REGIONAL_FAST_RAIL' | 'REGIONAL_RAIL' | 'OTHER';
 
 /**
  * - `NORMAL` - latitude / longitude coordinate or address
@@ -370,6 +371,14 @@ export type Rental = {
      */
     stationName?: string;
     /**
+     * Name of the station where the vehicle is picked up (empty for free floating vehicles)
+     */
+    fromStationName?: string;
+    /**
+     * Name of the station where the vehicle is returned (empty for free floating vehicles)
+     */
+    toStationName?: string;
+    /**
      * Rental URI for Android (deep link to the specific station or vehicle)
      */
     rentalUriAndroid?: string;
@@ -469,6 +478,99 @@ export type Leg = {
      */
     steps?: Array<StepInstruction>;
     rental?: Rental;
+    /**
+     * Index into `Itinerary.fareTransfers` array
+     * to identify which fare transfer this leg belongs to
+     *
+     */
+    fareTransferIndex?: number;
+    /**
+     * Index into the `Itinerary.fareTransfers[fareTransferIndex].effectiveFareLegProducts` array
+     * to identify which effective fare leg this itinerary leg belongs to
+     *
+     */
+    effectiveFareLegIndex?: number;
+};
+
+export type RiderCategory = {
+    /**
+     * Rider category name as displayed to the rider.
+     */
+    riderCategoryName: string;
+    /**
+     * Specifies if this category should be considered the default (i.e. the main category displayed to riders).
+     */
+    isDefaultFareCategory: boolean;
+    /**
+     * URL to a web page providing detailed information about the rider category and/or its eligibility criteria.
+     */
+    eligibilityUrl?: string;
+};
+
+export type FareMediaType = 'NONE' | 'PAPER_TICKET' | 'TRANSIT_CARD' | 'CONTACTLESS_EMV' | 'MOBILE_APP';
+
+export type FareMedia = {
+    /**
+     * Name of the fare media. Required for transit cards and mobile apps.
+     */
+    fareMediaName?: string;
+    /**
+     * The type of fare media.
+     */
+    fareMediaType: FareMediaType;
+};
+
+export type FareProduct = {
+    /**
+     * The name of the fare product as displayed to riders.
+     */
+    name: string;
+    /**
+     * The cost of the fare product. May be negative to represent transfer discounts. May be zero to represent a fare product that is free.
+     */
+    amount: number;
+    /**
+     * ISO 4217 currency code. The currency of the cost of the fare product.
+     */
+    currency: string;
+    riderCategory?: RiderCategory;
+    media?: FareMedia;
+};
+
+export type FareTransferRule = 'A_AB' | 'A_AB_B' | 'AB';
+
+/**
+ * The concept is derived from: https://gtfs.org/documentation/schedule/reference/#fare_transfer_rulestxt
+ *
+ * Terminology:
+ * - **Leg**: An itinerary leg as described by the `Leg` type of this API description.
+ * - **Effective Fare Leg**: Itinerary legs can be joined together to form one *effective fare leg*.
+ * - **Fare Transfer**: A fare transfer groups two or more effective fare legs.
+ * - **A** is the first *effective fare leg* of potentially multiple consecutive legs contained in a fare transfer
+ * - **B** is any *effective fare leg* following the first *effective fare leg* in this transfer
+ * - **AB** are all changes between *effective fare legs* contained in this transfer
+ *
+ * The fare transfer rule is used to derive the final set of products of the itinerary legs contained in this transfer:
+ * - A_AB means that any product from the first effective fare leg combined with the product attached to the transfer itself (AB) which can be empty (= free). Note that all subsequent effective fare leg products need to be ignored in this case.
+ * - A_AB_B mean that a product for each effective fare leg needs to be purchased in a addition to the product attached to the transfer itself (AB) which can be empty (= free)
+ * - AB only the transfer product itself has to be purchased. Note that all fare products attached to the contained effective fare legs need to be ignored in this case.
+ *
+ * An itinerary `Leg` references the index of the fare transfer and the index of the effective fare leg in this transfer it belongs to.
+ *
+ */
+export type FareTransfer = {
+    rule?: FareTransferRule;
+    transferProduct?: FareProduct;
+    /**
+     * Lists all valid fare products for the effective fare legs.
+     * This is an `array<array<FareProduct>>` where the inner array
+     * lists all possible fare products that would cover this effective fare leg.
+     * Each "effective fare leg" can have multiple options for adult/child/weekly/monthly/day/one-way tickets etc.
+     * You can see the outer array as AND (you need one ticket for each effective fare leg (`A_AB_B`), the first effective fare leg (`A_AB`) or no fare leg at all but only the transfer product (`AB`)
+     * and the inner array as OR (you can choose which ticket to buy)
+     *
+     */
+    effectiveFareLegProducts: Array<Array<FareProduct>>;
 };
 
 export type Itinerary = {
@@ -492,6 +594,10 @@ export type Itinerary = {
      * Journey legs
      */
     legs: Array<Leg>;
+    /**
+     * Fare information
+     */
+    fareTransfers?: Array<FareTransfer>;
 };
 
 /**
@@ -506,11 +612,17 @@ export type Footpath = {
      */
     default?: number;
     /**
-     * optional; missing if no path was found with the foot profile
+     * optional; missing if no path was found (timetable / osr)
      * footpath duration in minutes for the foot profile
      *
      */
     foot?: number;
+    /**
+     * optional; missing if no path was found with foot routing
+     * footpath duration in minutes for the foot profile
+     *
+     */
+    footRouted?: number;
     /**
      * optional; missing if no path was found with the wheelchair profile
      * footpath duration in minutes for the wheelchair profile
@@ -709,6 +821,12 @@ export type PlanData = {
          */
         arriveBy?: boolean;
         /**
+         * - true: Compute transfer polylines and step instructions.
+         * - false: Only return basic information (start time, end time, duration) for transfers.
+         *
+         */
+        detailedTransfers: boolean;
+        /**
          * Optional. Default is `WALK` which will compute walking routes as direct connections.
          *
          * Modes used for direction connections from start to destination without using transit.
@@ -757,9 +875,21 @@ export type PlanData = {
          */
         directRentalProviders?: Array<(string)>;
         /**
+         * Optional. Experimental. Default is `1.0`.
+         * Factor with which the duration of the fastest direct connection is multiplied.
+         * Values > 1.0 allow connections that are slower than the fastest direct connection to be found.
+         *
+         */
+        fastestDirectFactor?: number;
+        /**
          * \`latitude,longitude,level\` tuple in degrees OR stop id
          */
         fromPlace: string;
+        /**
+         * Optional. Experimental. Number of luggage pieces; base unit: airline cabin luggage (e.g. for ODM or price calculation)
+         *
+         */
+        luggage?: number;
         /**
          * Optional. Default is 30min which is `1800`.
          * Maximum time in seconds for direct connections.
@@ -830,6 +960,10 @@ export type PlanData = {
          *
          */
         pageCursor?: string;
+        /**
+         * Optional. Experimental. Number of passengers (e.g. for ODM or price calculation)
+         */
+        passengers?: number;
         /**
          * Optional. Default is `FOOT`.
          *
@@ -941,6 +1075,10 @@ export type PlanData = {
          */
         time?: string;
         /**
+         * Optional. Query timeout in seconds.
+         */
+        timeout?: number;
+        /**
          * Optional. Default is `true`.
          *
          * Search for the best trip options within a time window.
@@ -1005,6 +1143,10 @@ export type PlanData = {
          *
          */
         viaMinimumStay?: Array<(number)>;
+        /**
+         * Optional. Experimental. If set to true, the response will contain fare information.
+         */
+        withFares?: boolean;
     };
 };
 

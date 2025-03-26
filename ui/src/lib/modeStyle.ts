@@ -47,11 +47,14 @@ export const getModeStyle = (l: LegLike): [string, string, string] => {
 		case 'CAR_PARKING':
 			return ['car', '#333333', 'white'];
 
+		case 'ODM':
+			return ['taxi', '#fdb813', 'white'];
+
 		case 'TRANSIT':
 		case 'BUS':
 			return ['bus', '#ff9800', 'white'];
 		case 'COACH':
-			return ['bus', '#9ccc65', 'white'];
+			return ['bus', '#9ccc65', 'black'];
 
 		case 'TRAM':
 			return ['tram', '#ff9800', 'white'];
@@ -90,7 +93,7 @@ export const getColor = (l: Colorable): [string, string] => {
 	const [_, defaultColor, defaultTextColor] = getModeStyle(l);
 	return !l.routeColor || l.routeColor === '000000'
 		? [defaultColor, defaultTextColor]
-		: ['#' + l.routeColor, '#' + l.routeTextColor];
+		: ['#' + l.routeColor, '#' + l.routeTextColor || '000000'];
 };
 
 export const routeBorderColor = (l: Colorable) => {

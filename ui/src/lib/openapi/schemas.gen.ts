@@ -3,7 +3,6 @@
 export const DurationSchema = {
     description: 'Object containing duration if a path was found or none if no path was found',
     type: 'object',
-    required: [],
     properties: {
         duration: {
             type: 'number',
@@ -127,6 +126,7 @@ export const ModeSchema = {
   - \`RENTAL\` Experimental. Expect unannounced breaking changes (without version bumps).
   - \`CAR\`
   - \`CAR_PARKING\`
+  - \`ODM\`
 
 # Transit modes
 
@@ -146,7 +146,7 @@ export const ModeSchema = {
   - \`REGIONAL_RAIL\`: regional train
 `,
     type: 'string',
-    enum: ['WALK', 'BIKE', 'RENTAL', 'CAR', 'CAR_PARKING', 'TRANSIT', 'TRAM', 'SUBWAY', 'FERRY', 'AIRPLANE', 'METRO', 'BUS', 'COACH', 'RAIL', 'HIGHSPEED_RAIL', 'LONG_DISTANCE', 'NIGHT_RAIL', 'REGIONAL_FAST_RAIL', 'REGIONAL_RAIL', 'OTHER']
+    enum: ['WALK', 'BIKE', 'RENTAL', 'CAR', 'CAR_PARKING', 'ODM', 'TRANSIT', 'TRAM', 'SUBWAY', 'FERRY', 'AIRPLANE', 'METRO', 'BUS', 'COACH', 'RAIL', 'HIGHSPEED_RAIL', 'LONG_DISTANCE', 'NIGHT_RAIL', 'REGIONAL_FAST_RAIL', 'REGIONAL_RAIL', 'OTHER']
 } as const;
 
 export const VertexTypeSchema = {
@@ -452,6 +452,14 @@ export const RentalSchema = {
             type: 'string',
             description: 'Name of the station'
         },
+        fromStationName: {
+            type: 'string',
+            description: 'Name of the station where the vehicle is picked up (empty for free floating vehicles)'
+        },
+        toStationName: {
+            type: 'string',
+            description: 'Name of the station where the vehicle is returned (empty for free floating vehicles)'
+        },
         rentalUriAndroid: {
             type: 'string',
             description: 'Rental URI for Android (deep link to the specific station or vehicle)'
@@ -595,6 +603,140 @@ used for walking, biking and driving.
         },
         rental: {
             '$ref': '#/components/schemas/Rental'
+        },
+        fareTransferIndex: {
+            type: 'integer',
+            description: `Index into \`Itinerary.fareTransfers\` array
+to identify which fare transfer this leg belongs to
+`
+        },
+        effectiveFareLegIndex: {
+            type: 'integer',
+            description: `Index into the \`Itinerary.fareTransfers[fareTransferIndex].effectiveFareLegProducts\` array
+to identify which effective fare leg this itinerary leg belongs to
+`
+        }
+    }
+} as const;
+
+export const RiderCategorySchema = {
+    type: 'object',
+    required: ['riderCategoryName', 'isDefaultFareCategory'],
+    properties: {
+        riderCategoryName: {
+            description: 'Rider category name as displayed to the rider.',
+            type: 'string'
+        },
+        isDefaultFareCategory: {
+            description: 'Specifies if this category should be considered the default (i.e. the main category displayed to riders).',
+            type: 'boolean'
+        },
+        eligibilityUrl: {
+            description: 'URL to a web page providing detailed information about the rider category and/or its eligibility criteria.',
+            type: 'string'
+        }
+    }
+} as const;
+
+export const FareMediaTypeSchema = {
+    type: 'string',
+    enum: ['NONE', 'PAPER_TICKET', 'TRANSIT_CARD', 'CONTACTLESS_EMV', 'MOBILE_APP'],
+    enumDescriptions: {
+        NONE: 'No fare media involved (e.g., cash payment)',
+        PAPER_TICKET: 'Physical paper ticket',
+        TRANSIT_CARD: 'Physical transit card with stored value',
+        CONTACTLESS_EMV: 'cEMV (contactless payment)',
+        MOBILE_APP: 'Mobile app with virtual transit cards/passes'
+    }
+} as const;
+
+export const FareMediaSchema = {
+    type: 'object',
+    required: ['fareMediaType'],
+    properties: {
+        fareMediaName: {
+            description: 'Name of the fare media. Required for transit cards and mobile apps.',
+            type: 'string'
+        },
+        fareMediaType: {
+            description: 'The type of fare media.',
+            '$ref': '#/components/schemas/FareMediaType'
+        }
+    }
+} as const;
+
+export const FareProductSchema = {
+    type: 'object',
+    required: ['name', 'amount', 'currency'],
+    properties: {
+        name: {
+            description: 'The name of the fare product as displayed to riders.',
+            type: 'string'
+        },
+        amount: {
+            description: 'The cost of the fare product. May be negative to represent transfer discounts. May be zero to represent a fare product that is free.',
+            type: 'number'
+        },
+        currency: {
+            description: 'ISO 4217 currency code. The currency of the cost of the fare product.',
+            type: 'string'
+        },
+        riderCategory: {
+            '$ref': '#/components/schemas/RiderCategory'
+        },
+        media: {
+            '$ref': '#/components/schemas/FareMedia'
+        }
+    }
+} as const;
+
+export const FareTransferRuleSchema = {
+    type: 'string',
+    enum: ['A_AB', 'A_AB_B', 'AB']
+} as const;
+
+export const FareTransferSchema = {
+    type: 'object',
+    description: `The concept is derived from: https://gtfs.org/documentation/schedule/reference/#fare_transfer_rulestxt
+
+Terminology:
+  - **Leg**: An itinerary leg as described by the \`Leg\` type of this API description.
+  - **Effective Fare Leg**: Itinerary legs can be joined together to form one *effective fare leg*.
+  - **Fare Transfer**: A fare transfer groups two or more effective fare legs.
+  - **A** is the first *effective fare leg* of potentially multiple consecutive legs contained in a fare transfer
+  - **B** is any *effective fare leg* following the first *effective fare leg* in this transfer
+  - **AB** are all changes between *effective fare legs* contained in this transfer
+
+The fare transfer rule is used to derive the final set of products of the itinerary legs contained in this transfer:
+  - A_AB means that any product from the first effective fare leg combined with the product attached to the transfer itself (AB) which can be empty (= free). Note that all subsequent effective fare leg products need to be ignored in this case.
+  - A_AB_B mean that a product for each effective fare leg needs to be purchased in a addition to the product attached to the transfer itself (AB) which can be empty (= free)
+  - AB only the transfer product itself has to be purchased. Note that all fare products attached to the contained effective fare legs need to be ignored in this case.
+
+An itinerary \`Leg\` references the index of the fare transfer and the index of the effective fare leg in this transfer it belongs to.
+`,
+    required: ['effectiveFareLegProducts'],
+    properties: {
+        rule: {
+            '$ref': '#/components/schemas/FareTransferRule'
+        },
+        transferProduct: {
+            '$ref': '#/components/schemas/FareProduct'
+        },
+        effectiveFareLegProducts: {
+            description: `Lists all valid fare products for the effective fare legs.
+This is an \`array<array<FareProduct>>\` where the inner array
+lists all possible fare products that would cover this effective fare leg.
+Each "effective fare leg" can have multiple options for adult/child/weekly/monthly/day/one-way tickets etc.
+You can see the outer array as AND (you need one ticket for each effective fare leg (\`A_AB_B\`), the first effective fare leg (\`A_AB\`) or no fare leg at all but only the transfer product (\`AB\`)
+and the inner array as OR (you can choose which ticket to buy)
+`,
+            type: 'array',
+            items: {
+                type: 'array',
+                items: {
+                    '$ref': '#/components/schemas/FareProduct'
+                }
+            }
         }
     }
 } as const;
@@ -627,6 +769,13 @@ export const ItinerarySchema = {
             items: {
                 '$ref': '#/components/schemas/Leg'
             }
+        },
+        fareTransfers: {
+            description: 'Fare information',
+            type: 'array',
+            items: {
+                '$ref': '#/components/schemas/FareTransfer'
+            }
         }
     }
 } as const;
@@ -647,7 +796,13 @@ footpath duration in minutes according to GTFS (+heuristics)
         },
         foot: {
             type: 'number',
-            description: `optional; missing if no path was found with the foot profile
+            description: `optional; missing if no path was found (timetable / osr)
+footpath duration in minutes for the foot profile
+`
+        },
+        footRouted: {
+            type: 'number',
+            description: `optional; missing if no path was found with foot routing
 footpath duration in minutes for the foot profile
 `
         },

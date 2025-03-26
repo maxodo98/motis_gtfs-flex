@@ -2,6 +2,7 @@
 
 #include <filesystem>
 #include <iostream>
+#include <string_view>
 
 #include "google/protobuf/stubs/common.h"
 
@@ -31,6 +32,7 @@ int compare(int, char**);
 using namespace motis;
 
 int main(int ac, char** av) {
+  auto const motis_version = std::string_view{MOTIS_VERSION};
   if (ac > 1 && av[1] == "--help"sv) {
     fmt::println(
         "MOTIS {}\n\n"
@@ -44,10 +46,10 @@ int main(int ac, char** av) {
         "  config     generate a config file from a list of input files\n"
         "  import     prepare input data, creates the data directory\n"
         "  server     starts a web server serving the API\n",
-        MOTIS_VERSION);
+        motis_version);
     return 0;
   } else if (ac <= 1 || (ac >= 2 && av[1] == "--version"sv)) {
-    fmt::println("{}", MOTIS_VERSION);
+    fmt::println("{}", motis_version);
     return 0;
   }
 
@@ -55,12 +57,14 @@ int main(int ac, char** av) {
   --ac;
   ++av;
 
+  auto return_value = 0;
+
   // Execute command.
   auto const cmd = std::string_view{av[0]};
   switch (cista::hash(cmd)) {
-    case cista::hash("generate"): return generate(ac, av);
-    case cista::hash("batch"): return batch(ac, av);
-    case cista::hash("compare"): return compare(ac, av);
+    case cista::hash("generate"): return_value = generate(ac, av); break;
+    case cista::hash("batch"): return_value = batch(ac, av); break;
+    case cista::hash("compare"): return_value = compare(ac, av); break;
 
     case cista::hash("config"): {
       auto paths = std::vector<std::string>{};
@@ -80,10 +84,12 @@ int main(int ac, char** av) {
             "\n\n"
             "Example: motis config germany-latest.osm.pbf "
             "germany.gtfs.zip\n");
-        return paths.empty() ? 1 : 0;
+        return_value = paths.empty() ? 1 : 0;
+        break;
       }
       std::ofstream{"config.yml"} << config::read_simple(paths) << "\n";
-      return 0;
+      return_value = 0;
+      break;
     }
 
     case cista::hash("server"):
@@ -95,14 +101,16 @@ int main(int ac, char** av) {
         auto vm = parse_opt(ac, av, desc);
         if (vm.count("help")) {
           std::cout << desc << "\n";
-          return 0;
+          return_value = 0;
+          break;
         }
 
         auto const c = config::read(data_path / "config.yml");
-        return server(data{data_path, c}, c);
+        return server(data{data_path, c}, c, motis_version);
       } catch (std::exception const& e) {
         std::cerr << "unable to start server: " << e.what() << "\n";
-        return 1;
+        return_value = 1;
+        break;
       }
 
     case cista::hash("import"): {
@@ -117,21 +125,30 @@ int main(int ac, char** av) {
         auto vm = parse_opt(ac, av, desc);
         if (vm.count("help")) {
           std::cout << desc << "\n";
-          return 0;
+          return_value = 0;
+          break;
         }
 
         c = config_path.extension() == ".ini" ? config::read_legacy(config_path)
                                               : config::read(config_path);
         auto const bars = utl::global_progress_bars{false};
         import(c, std::move(data_path));
-        return 0;
+        return_value = 0;
+        break;
       } catch (std::exception const& e) {
         fmt::println("unable to import: {}", e.what());
         fmt::println("config:\n{}", fmt::streamed(c));
-        return 1;
+        return_value = 1;
+        break;
       }
     }
+
+    default:
+      fmt::println("Invalid command. Type motis --help for a list of commands.");
+      return_value = 1;
+      break;
   }
 
   google::protobuf::ShutdownProtobufLibrary();
+  return return_value;
 }

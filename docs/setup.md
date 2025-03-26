@@ -1,6 +1,6 @@
 # Advanced Configuration
 
-This is an example of how to use multiple GTFS-static datasets with multiple real-time feeds. You can also see how to set additional headers like `Authorization` to enable the usage of API keys.
+This is an example of how to use multiple GTFS-static datasets with multiple real-time feeds, as well as GBFS feeds. You can also see how to set additional headers like `Authorization` to enable the usage of API keys.
 
 ```yaml
 server:
@@ -20,6 +20,10 @@ timetable:
         - url: https://api.opentransportdata.swiss/gtfsrt2020
           headers:
             Authorization: MY_API_KEY
+gbfs:
+  feeds:
+    montreal:
+      url: https://gbfs.velobixi.com/gbfs/gbfs.json
 tiles:
   profile: tiles-profiles/full.lua
 street_routing: true
@@ -51,7 +55,7 @@ timetable:                          # if not set, no timetable will be loaded
   merge_dupes_inter_src: false      # duplicates withing different datasets will be merged
   link_stop_distance: 100           # stops will be linked by footpaths if they're less than X meters (default=100m) apart
   update_interval: 60               # real-time updates are polled every `update_interval` seconds
-  http_timeout: 10                  # timeout for the HTTP server to respond with a package
+  http_timeout: 30                  # maximum time in seconds the real-time feed download may take
   incremental_rt_update: false      # false = real-time updates are applied to a clean slate, true = no data will be dropped
   max_footpath_length: 15           # maximum footpath length when transitively connecting stops or for routing footpaths if `osr_footpath` is set to true
   datasets:                         # map of tag -> dataset
@@ -68,6 +72,10 @@ timetable:                          # if not set, no timetable will be loaded
       rt:
         - url: https://gtfs.ovapi.nl/nl/trainUpdates.pb
         - url: https://gtfs.ovapi.nl/nl/tripUpdates.pb
+gbfs:
+  feeds:
+    montreal:
+      url: https://gbfs.velobixi.com/gbfs/gbfs.json
 street_routing: true              # enable street routing (default = false)
 osr_footpath: true                # enable routing footpaths instead of using transfers from timetable datasets
 elevators: false                  # currently not supported

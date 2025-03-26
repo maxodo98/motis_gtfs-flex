@@ -10,11 +10,13 @@
 	import { formatTime } from '$lib/toDateTime';
 	import { lngLatToStr } from '$lib/lngLatToStr';
 	import maplibregl from 'maplibre-gl';
-	import { onDestroy } from 'svelte';
+	import { onDestroy, untrack } from 'svelte';
 	import Control from '$lib/map/Control.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import Palette from 'lucide-svelte/icons/palette';
 	import Rss from 'lucide-svelte/icons/rss';
+	import LocateFixed from 'lucide-svelte/icons/locate-fixed';
+	import { browser } from '$app/environment';
 
 	let {
 		map,
@@ -29,6 +31,7 @@
 	} = $props();
 
 	let colorMode = $state<'rt' | 'route'>('route');
+	let railvizError = $state();
 
 	type RGBA = [number, number, number, number];
 
@@ -203,7 +206,6 @@
 		});
 	};
 
-	let railvizError = $state();
 	let animation: number | null = null;
 	const updateRailvizLayer = async () => {
 		try {
@@ -247,6 +249,17 @@
 		}, 60000);
 	};
 
+	const geolocate = new maplibregl.GeolocateControl({
+		positionOptions: {
+			enableHighAccuracy: true
+		},
+		showAccuracyCircle: false
+	});
+
+	const getLocation = () => {
+		geolocate.trigger();
+	};
+
 	$effect(() => {
 		if (map && !overlay) {
 			overlay = new MapboxOverlay({
@@ -269,17 +282,20 @@
 					onClickTrip(object.trips[0].tripId);
 				}
 			});
+			map.addControl(geolocate);
 			map.addControl(overlay);
 
 			console.log('updateRailviz: init');
-			updateRailviz();
+			untrack(() => updateRailviz());
 		}
 	});
 
 	$effect(() => {
 		if (overlay && bounds && zoom && colorMode) {
-			console.log(`updateRailviz: effect ${overlay} ${bounds} ${zoom} ${colorMode}`);
-			updateRailviz();
+			untrack(() => {
+				console.log(`updateRailviz: effect ${overlay} ${bounds} ${zoom} ${colorMode}`);
+				updateRailviz();
+			});
 		}
 	});
 
@@ -294,7 +310,7 @@
 	});
 </script>
 
-<Control position="top-right">
+<Control position={browser && window.innerWidth < 768 ? 'bottom-left' : 'top-right'} class="pb-4">
 	<Button
 		size="icon"
 		variant={colorMode ? 'default' : 'outline'}
@@ -303,10 +319,13 @@
 		}}
 	>
 		{#if colorMode == 'rt'}
-			<Rss size="icon" class="h-[1.2rem] w-[1.2rem]" />
+			<Rss class="h-[1.2rem] w-[1.2rem]" />
 		{:else}
-			<Palette size="icon" class="h-[1.2rem] w-[1.2rem]" />
+			<Palette class="h-[1.2rem] w-[1.2rem]" />
 		{/if}
+	</Button>
+	<Button size="icon" onclick={() => getLocation()}>
+		<LocateFixed class="w-5 h-5" />
 	</Button>
 </Control>
 

@@ -1,6 +1,9 @@
 import type { Translations } from './translation';
 
 const translations: Translations = {
+	ticket: 'Bilet',
+	ticketOptions: 'Opcje biletu',
+	includedInTicket: 'Zawarte w bilecie',
 	journeyDetails: 'Szczegóły podróży',
 	transfers: 'przesiadki',
 	walk: 'Pieszo',
@@ -9,6 +12,7 @@ const translations: Translations = {
 	scooterStanding: 'Hulajnoga stojąca',
 	scooterSeated: 'Hulajnoga z siedziskiem',
 	car: 'Samochód',
+	taxi: 'Taksówka',
 	moped: 'Skuter',
 	from: 'Z',
 	to: 'Do',
@@ -34,7 +38,35 @@ const translations: Translations = {
 		}
 	},
 	sharingProvider: 'Dostawca',
-	roundtripStationReturnConstraint: 'Pojazd musi zostać zwrócony do stacji początkowej.'
+	roundtripStationReturnConstraint: 'Pojazd musi zostać zwrócony do stacji początkowej.',
+	noItinerariesFound: 'No itineraries found.',
+	advancedSearchOptions: 'Options',
+	selectModes: 'Select transit modes',
+	defaultSelectedModes: 'All transit modes',
+	wheelchair: 'Barrier-free transfers',
+	bikeRental: 'Allow usage of sharing vehicles',
+	bikeCarriage: 'Bike carriage',
+	unreliableOptions: 'Depending on data availability, these options may be unreliable.',
+	WALK: 'Walking',
+	BIKE: 'Bike',
+	RENTAL: 'Sharing',
+	CAR: 'Car',
+	CAR_PARKING: 'Car Parking',
+	TRANSIT: 'Transit',
+	TRAM: 'Tram',
+	SUBWAY: 'Subway',
+	FERRY: 'Ferry',
+	AIRPLANE: 'Airplane',
+	METRO: 'Metropolitan Rail',
+	BUS: 'Bus',
+	COACH: 'Coach',
+	RAIL: 'Train',
+	HIGHSPEED_RAIL: 'High Speed Rail',
+	LONG_DISTANCE: 'Intercity Rail',
+	NIGHT_RAIL: 'Night Rail',
+	REGIONAL_FAST_RAIL: 'Regional Fast Rail',
+	REGIONAL_RAIL: 'Regional Rail',
+	OTHER: 'Other'
 };
 
 export default translations;

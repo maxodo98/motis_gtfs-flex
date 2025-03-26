@@ -308,92 +308,116 @@ struct gbfs_update {
       gbfs_provider const* prev_provider,
       std::optional<gbfs_file> discovery = std::nullopt) {
     auto& file_infos = provider.file_infos_;
+    auto data_changed = false;
 
-    if (!discovery && needs_refresh(provider.file_infos_->urls_fi_)) {
-      discovery = co_await fetch_file("gbfs", pf.url_, pf.headers_, pf.dir_);
-    }
-    if (discovery) {
-      file_infos->urls_ = parse_discovery(discovery->json_);
-      file_infos->urls_fi_.expiry_ = discovery->next_refresh_;
-      file_infos->urls_fi_.hash_ = discovery->hash_;
-    }
-
-    auto const update = [&](std::string_view const name, file_info& fi,
-                            auto const& fn,
-                            bool const force = false) -> awaitable<bool> {
-      if (force || (file_infos->urls_.contains(name) && needs_refresh(fi))) {
-        auto file = co_await fetch_file(name, file_infos->urls_.at(name),
-                                        pf.headers_, pf.dir_);
-        auto const hash_changed = file.hash_ != fi.hash_;
-        auto j_root = file.json_.as_object();
-        fi.expiry_ = file.next_refresh_;
-        fi.hash_ = file.hash_;
-        fn(provider, file.json_);
-        co_return hash_changed;
+    try {
+      if (!discovery && needs_refresh(provider.file_infos_->urls_fi_)) {
+        discovery = co_await fetch_file("gbfs", pf.url_, pf.headers_, pf.dir_);
       }
-      co_return false;
-    };
+      if (discovery) {
+        file_infos->urls_ = parse_discovery(discovery->json_);
+        file_infos->urls_fi_.expiry_ = discovery->next_refresh_;
+        file_infos->urls_fi_.hash_ = discovery->hash_;
+      }
 
-    auto const sys_info_updated = co_await update(
-        "system_information", file_infos->system_information_fi_,
-        load_system_information);
-    if (!sys_info_updated && prev_provider != nullptr) {
-      provider.sys_info_ = prev_provider->sys_info_;
+      auto const update = [&](std::string_view const name, file_info& fi,
+                              auto const& fn,
+                              bool const force = false) -> awaitable<bool> {
+        if (force || (file_infos->urls_.contains(name) && needs_refresh(fi))) {
+          auto file = co_await fetch_file(name, file_infos->urls_.at(name),
+                                          pf.headers_, pf.dir_);
+          auto const hash_changed = file.hash_ != fi.hash_;
+          auto j_root = file.json_.as_object();
+          fi.expiry_ = file.next_refresh_;
+          fi.hash_ = file.hash_;
+          fn(provider, file.json_);
+          co_return hash_changed;
+        }
+        co_return false;
+      };
+
+      auto const sys_info_updated = co_await update(
+          "system_information", file_infos->system_information_fi_,
+          load_system_information);
+      if (!sys_info_updated && prev_provider != nullptr) {
+        provider.sys_info_ = prev_provider->sys_info_;
+      }
+
+      auto const vehicle_types_updated = co_await update(
+          "vehicle_types", file_infos->vehicle_types_fi_, load_vehicle_types);
+      if (!vehicle_types_updated && prev_provider != nullptr) {
+        provider.vehicle_types_ = prev_provider->vehicle_types_;
+        provider.vehicle_types_map_ = prev_provider->vehicle_types_map_;
+        provider.temp_vehicle_types_ = prev_provider->temp_vehicle_types_;
+      }
+
+      auto const stations_updated = co_await update(
+          "station_information", file_infos->station_information_fi_,
+          load_station_information);
+      if (!stations_updated && prev_provider != nullptr) {
+        provider.stations_ = prev_provider->stations_;
+      }
+
+      auto const station_status_updated =
+          co_await update("station_status", file_infos->station_status_fi_,
+                          load_station_status, stations_updated);
+
+      auto const vehicle_status_updated =
+          co_await update("vehicle_status", file_infos->vehicle_status_fi_,
+                          load_vehicle_status)  // 3.x
+          || co_await update("free_bike_status", file_infos->vehicle_status_fi_,
+                             load_vehicle_status);  // 1.x / 2.x
+      if (!vehicle_status_updated && prev_provider != nullptr) {
+        provider.vehicle_status_ = prev_provider->vehicle_status_;
+      }
+
+      auto const geofencing_updated =
+          co_await update("geofencing_zones", file_infos->geofencing_zones_fi_,
+                          load_geofencing_zones);
+      if (!geofencing_updated && prev_provider != nullptr) {
+        provider.geofencing_zones_ = prev_provider->geofencing_zones_;
+      }
+
+      if (prev_provider != nullptr) {
+        provider.has_vehicles_to_rent_ = prev_provider->has_vehicles_to_rent_;
+      }
+
+      data_changed = vehicle_types_updated || stations_updated ||
+                     station_status_updated || vehicle_status_updated ||
+                     geofencing_updated;
+    } catch (std::exception const& ex) {
+      std::cerr << "[GBFS] error processing feed " << pf.id_ << " (" << pf.url_
+                << "): " << ex.what() << "\n";
+
+      // keep previous data
+      if (prev_provider != nullptr) {
+        provider.sys_info_ = prev_provider->sys_info_;
+        provider.vehicle_types_ = prev_provider->vehicle_types_;
+        provider.vehicle_types_map_ = prev_provider->vehicle_types_map_;
+        provider.temp_vehicle_types_ = prev_provider->temp_vehicle_types_;
+        provider.stations_ = prev_provider->stations_;
+        provider.vehicle_status_ = prev_provider->vehicle_status_;
+        provider.geofencing_zones_ = prev_provider->geofencing_zones_;
+        provider.has_vehicles_to_rent_ = prev_provider->has_vehicles_to_rent_;
+      }
     }
-
-    auto const vehicle_types_updated = co_await update(
-        "vehicle_types", file_infos->vehicle_types_fi_, load_vehicle_types);
-    if (!vehicle_types_updated && prev_provider != nullptr) {
-      provider.vehicle_types_ = prev_provider->vehicle_types_;
-      provider.vehicle_types_map_ = prev_provider->vehicle_types_map_;
-    }
-
-    auto const stations_updated = co_await update(
-        "station_information", file_infos->station_information_fi_,
-        load_station_information);
-    if (!stations_updated && prev_provider != nullptr) {
-      provider.stations_ = prev_provider->stations_;
-    }
-
-    auto const station_status_updated =
-        co_await update("station_status", file_infos->station_status_fi_,
-                        load_station_status, stations_updated);
-
-    auto const vehicle_status_updated =
-        co_await update("vehicle_status", file_infos->vehicle_status_fi_,
-                        load_vehicle_status)  // 3.x
-        || co_await update("free_bike_status", file_infos->vehicle_status_fi_,
-                           load_vehicle_status);  // 1.x / 2.x
-    if (!vehicle_status_updated && prev_provider != nullptr) {
-      provider.vehicle_status_ = prev_provider->vehicle_status_;
-    }
-
-    auto const geofencing_updated =
-        co_await update("geofencing_zones", file_infos->geofencing_zones_fi_,
-                        load_geofencing_zones);
-    if (!geofencing_updated && prev_provider != nullptr) {
-      provider.geofencing_zones_ = prev_provider->geofencing_zones_;
-    }
-
-    if (prev_provider != nullptr) {
-      provider.has_vehicles_to_rent_ = prev_provider->has_vehicles_to_rent_;
-    }
-
-    auto const data_changed = vehicle_types_updated || stations_updated ||
-                              station_status_updated ||
-                              vehicle_status_updated || geofencing_updated;
 
     if (data_changed) {
-      partition_provider(provider);
-      provider.has_vehicles_to_rent_ = utl::any_of(
-          provider.products_,
-          [](auto const& prod) { return prod.has_vehicles_to_rent_; });
+      try {
+        partition_provider(provider);
+        provider.has_vehicles_to_rent_ = utl::any_of(
+            provider.products_,
+            [](auto const& prod) { return prod.has_vehicles_to_rent_; });
 
-      update_rtree(provider, prev_provider);
+        update_rtree(provider, prev_provider);
 
-      d_->cache_.try_add_or_update(provider.idx_, [&]() {
-        return compute_provider_routing_data(w_, l_, provider);
-      });
+        d_->cache_.try_add_or_update(provider.idx_, [&]() {
+          return compute_provider_routing_data(w_, l_, provider);
+        });
+      } catch (std::exception const& ex) {
+        std::cerr << "[GBFS] error updating provider " << pf.id_ << ": "
+                  << ex.what() << "\n";
+      }
     } else if (prev_provider != nullptr) {
       // data not changed, copy previously computed products
       provider.products_ = prev_provider->products_;
@@ -403,7 +427,6 @@ struct gbfs_update {
 
   void partition_provider(gbfs_provider& provider) {
     if (provider.vehicle_types_.empty()) {
-      // providers without vehicle types only need one product segment
       auto& prod = provider.products_.emplace_back();
       prod.idx_ = gbfs_products_idx_t{0};
       prod.has_vehicles_to_rent_ =
@@ -440,6 +463,19 @@ struct gbfs_update {
         part.refine(vt_indices);
       }
 
+      // refine by known vs. guessed return constraints
+      auto known_return_constraints = std::vector<vehicle_type_idx_t>{};
+      auto guessed_return_constraints = std::vector<vehicle_type_idx_t>{};
+      for (auto const& vt : provider.vehicle_types_) {
+        if (vt.known_return_constraint_) {
+          known_return_constraints.push_back(vt.idx_);
+        } else {
+          guessed_return_constraints.push_back(vt.idx_);
+        }
+      }
+      part.refine(known_return_constraints);
+      part.refine(guessed_return_constraints);
+
       // refine by return stations
       // TODO: only do this if the station is not in a zone where vehicles
       //   can be returned anywhere
@@ -471,6 +507,7 @@ struct gbfs_update {
         prod.form_factor_ = first_vt.form_factor_;
         prod.propulsion_type_ = first_vt.propulsion_type_;
         prod.return_constraint_ = first_vt.return_constraint_;
+        prod.known_return_constraint_ = first_vt.known_return_constraint_;
         prod.has_vehicles_to_rent_ =
             utl::any_of(provider.stations_,
                         [&](auto const& st) {

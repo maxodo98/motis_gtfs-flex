@@ -149,8 +149,8 @@ data import(config const& c, fs::path const& data_path, bool const write) {
     }
 
     h = cista::build_hash(
-        h, t.first_day_, t.num_days_, t.with_shapes_, t.ignore_errors_,
-        t.adjust_footpaths_, t.merge_dupes_intra_src_, t.merge_dupes_inter_src_,
+        h, t.first_day_, t.num_days_, t.with_shapes_, t.adjust_footpaths_,
+        t.merge_dupes_intra_src_, t.merge_dupes_inter_src_,
         t.link_stop_distance_, t.update_interval_, t.incremental_rt_update_,
         t.max_footpath_length_, t.default_timezone_, t.assistance_times_);
   }
@@ -175,7 +175,8 @@ data import(config const& c, fs::path const& data_path, bool const write) {
                   [&]() { return c.street_routing_; },
                   [&]() { return true; },
                   [&]() {
-                    osr::extract(true, fs::path{*c.osm_}, data_path / "osr");
+                    osr::extract(true, fs::path{*c.osm_}, data_path / "osr",
+                                 fs::path{});
                     d.load_osr();
                   },
                   [&]() { d.load_osr(); },
@@ -277,7 +278,7 @@ data import(config const& c, fs::path const& data_path, bool const write) {
              .merge_dupes_intra_src_ = t.merge_dupes_intra_src_,
              .merge_dupes_inter_src_ = t.merge_dupes_inter_src_,
              .max_footpath_length_ = t.max_footpath_length_},
-            interval, assistance.get(), d.shapes_.get(), t.ignore_errors_))};
+            interval, assistance.get(), d.shapes_.get(), false))};
         d.location_rtee_ =
             std::make_unique<point_rtree<nigiri::location_idx_t>>(
                 create_location_rtree(*d.tt_));
@@ -297,7 +298,7 @@ data import(config const& c, fs::path const& data_path, bool const write) {
         }
       },
       [&]() {
-        d.load_tt();
+        d.load_tt("tt.bin");
         if (c.timetable_->with_shapes_) {
           d.load_shapes();
         }
@@ -367,19 +368,23 @@ data import(config const& c, fs::path const& data_path, bool const write) {
 
   auto osr_footpath = task{
       "osr_footpath",
-      [&]() { return c.osr_footpath_; },
-      [&]() { return d.tt_ && d.w_ && d.l_ && d.pl_; },
+      [&]() { return c.osr_footpath_ && c.timetable_; },
+      [&]() { return d.tt_ && d.tags_ && d.w_ && d.l_ && d.pl_; },
       [&]() {
-        auto const elevator_footpath_map =
-            compute_footpaths(*d.w_, *d.l_, *d.pl_, *d.tt_, true);
+        auto const elevator_footpath_map = compute_footpaths(
+            *d.w_, *d.l_, *d.pl_, *d.tt_, d.elevations_.get(),
+            c.timetable_->use_osm_stop_coordinates_,
+            c.timetable_->extend_missing_footpaths_,
+            std::chrono::seconds{c.timetable_->max_footpath_length_ * 60U},
+            c.timetable_->max_matching_distance_);
 
         if (write) {
           cista::write(data_path / "elevator_footpath_map.bin",
                        elevator_footpath_map);
-          d.tt_->write(data_path / "tt.bin");
+          d.tt_->write(data_path / "tt_ext.bin");
         }
       },
-      [&]() {},
+      [&]() { d.load_tt("tt_ext.bin"); },
       {tt_hash, osm_hash, osr_version(), osr_footpath_version(), n_version()}};
 
   auto matches =

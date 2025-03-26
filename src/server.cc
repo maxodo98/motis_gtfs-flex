@@ -22,6 +22,7 @@
 #include "motis/endpoints/map/stops.h"
 #include "motis/endpoints/map/trips.h"
 #include "motis/endpoints/matches.h"
+#include "motis/endpoints/one_to_all.h"
 #include "motis/endpoints/one_to_many.h"
 #include "motis/endpoints/osr_routing.h"
 #include "motis/endpoints/platforms.h"
@@ -32,6 +33,8 @@
 #include "motis/endpoints/update_elevator.h"
 #include "motis/gbfs/update.h"
 #include "motis/rt_update.h"
+#include "motis/scheduler/runner.h"
+#include "motis/scheduler/scheduler_algo.h"
 
 namespace fs = std::filesystem;
 namespace asio = boost::asio;
@@ -52,11 +55,14 @@ void POST(auto&& r, std::string target, From& from) {
   }
 }
 
-int server(data d, config const& c) {
+int server(data d, config const& c, std::string_view const motis_version) {
+  auto const server_config = c.server_.value_or(config::server{});
+
   auto ioc = asio::io_context{};
-  auto workers = asio::io_context{};
   auto s = net::web_server{ioc};
-  auto qr = net::query_router{net::asio_exec(ioc, workers)};
+  auto r = runner{server_config.n_threads_, 1024U};
+  auto qr = net::query_router{net::fiber_exec{ioc, r.ch_}};
+  qr.add_header("Server", std::format("MOTIS {}", motis_version));
 
   POST<ep::matches>(qr, "/api/matches", d);
   POST<ep::elevators>(qr, "/api/elevators", d);
@@ -74,6 +80,7 @@ int server(data d, config const& c) {
   GET<ep::trip>(qr, "/api/v1/trip", d);
   GET<ep::trips>(qr, "/api/v1/map/trips", d);
   GET<ep::stops>(qr, "/api/v1/map/stops", d);
+  GET<ep::one_to_all>(qr, "/api/experimental/one-to-all", d);
   GET<ep::one_to_many>(qr, "/api/v1/one-to-many", d);
 
   if (c.tiles_) {
@@ -81,7 +88,6 @@ int server(data d, config const& c) {
     qr.route("GET", "/tiles/", ep::tiles{*d.tiles_});
   }
 
-  auto const server_config = c.server_.value_or(config::server{});
   qr.serve_files(server_config.web_folder_);
   qr.enable_cors();
   s.set_timeout(std::chrono::minutes{5});
@@ -101,7 +107,7 @@ int server(data d, config const& c) {
   if (c.requires_rt_timetable_updates()) {
     rt_update_ioc = std::make_unique<asio::io_context>();
     rt_update_thread = std::make_unique<std::thread>([&]() {
-      utl::set_current_thread_name("rt update");
+      utl::set_current_thread_name("motis rt update");
       run_rt_update(*rt_update_ioc, c, *d.tt_, *d.tags_, d.rt_);
       rt_update_ioc->run();
     });
@@ -112,22 +118,21 @@ int server(data d, config const& c) {
   if (d.w_ && d.l_ && c.has_gbfs_feeds()) {
     gbfs_update_ioc = std::make_unique<asio::io_context>();
     gbfs_update_thread = std::make_unique<std::thread>([&]() {
-      utl::set_current_thread_name("gbfs update");
+      utl::set_current_thread_name("motis gbfs update");
       gbfs::run_gbfs_update(*gbfs_update_ioc, c, *d.w_, *d.l_, d.gbfs_);
       gbfs_update_ioc->run();
     });
   }
 
-  auto const work_guard = asio::make_work_guard(workers);
-  auto threads = std::vector<std::thread>(
-      static_cast<unsigned>(std::max(1U, server_config.n_threads_)));
+  auto threads = std::vector<std::thread>{server_config.n_threads_};
   for (auto [i, t] : utl::enumerate(threads)) {
-    t = std::thread(net::run(workers));
-    utl::set_thread_name(t, fmt::format("worker {}", i));
+    t = std::thread{r.run_fn()};
+    utl::set_thread_name(t, fmt::format("motis worker {}", i));
   }
 
   auto const stop = net::stop_handler(ioc, [&]() {
     fmt::println("shutdown");
+    r.ch_.close();
     s.stop();
     ioc.stop();
 
@@ -143,7 +148,6 @@ int server(data d, config const& c) {
                server_config.host_, server_config.port_, server_config.port_);
   net::run(ioc)();
 
-  workers.stop();
   for (auto& t : threads) {
     t.join();
   }

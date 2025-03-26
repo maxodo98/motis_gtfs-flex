@@ -28,6 +28,7 @@ struct config {
 
   bool requires_rt_timetable_updates() const;
   bool has_gbfs_feeds() const;
+  bool has_odm() const;
 
   bool operator==(config const&) const = default;
 
@@ -79,15 +80,17 @@ struct config {
     std::uint16_t num_days_{365U};
     bool railviz_{true};
     bool with_shapes_{true};
-    bool ignore_errors_{false};
     bool adjust_footpaths_{true};
     bool merge_dupes_intra_src_{false};
     bool merge_dupes_inter_src_{false};
     unsigned link_stop_distance_{100U};
     unsigned update_interval_{60};
-    unsigned http_timeout_{10};
+    unsigned http_timeout_{30};
     bool incremental_rt_update_{false};
+    bool use_osm_stop_coordinates_{false};
+    bool extend_missing_footpaths_{false};
     std::uint16_t max_footpath_length_{15};
+    double max_matching_distance_{25.0};
     std::optional<std::string> default_timezone_{};
     std::map<std::string, dataset> datasets_{};
     std::optional<std::filesystem::path> assistance_times_{};
@@ -113,11 +116,18 @@ struct config {
     std::map<std::string, feed> feeds_{};
     std::map<std::string, restrictions> default_restrictions_{};
     unsigned update_interval_{60};
-    unsigned http_timeout_{10};
+    unsigned http_timeout_{30};
     unsigned cache_size_{50};
     std::optional<std::string> proxy_{};
   };
   std::optional<gbfs> gbfs_{};
+
+  struct odm {
+    bool operator==(odm const&) const = default;
+    std::string url_{};
+    std::optional<std::string> bounds_{};
+  };
+  std::optional<odm> odm_{};
 
   bool street_routing_{false};
   bool osr_footpath_{false};

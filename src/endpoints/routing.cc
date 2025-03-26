@@ -32,6 +32,7 @@
 #include "motis/journey_to_response.h"
 #include "motis/max_distance.h"
 #include "motis/mode_to_profile.h"
+#include "motis/odm/meta_router.h"
 #include "motis/parse_location.h"
 #include "motis/street_routing.h"
 #include "motis/tag_lookup.h"
@@ -51,13 +52,13 @@ using td_offsets_t =
     n::hash_map<n::location_idx_t, std::vector<n::routing::td_offset>>;
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-static boost::thread_specific_ptr<n::routing::search_state> search_state;
+boost::thread_specific_ptr<n::routing::search_state> search_state;
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-static boost::thread_specific_ptr<n::routing::raptor_state> raptor_state;
+boost::thread_specific_ptr<n::routing::raptor_state> raptor_state;
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-static boost::thread_specific_ptr<osr::bitvec<osr::node_idx_t>> blocked;
+boost::thread_specific_ptr<osr::bitvec<osr::node_idx_t>> blocked;
 
 std::vector<motis::flex_id> flex_identifier_{};
 
@@ -97,6 +98,10 @@ td_offsets_t routing::get_td_offsets(elevators const& e,
 
   auto ret = hash_map<n::location_idx_t, std::vector<n::routing::td_offset>>{};
   for (auto const m : modes) {
+    if (m == api::ModeEnum::ODM) {
+      continue;
+    }
+
     auto const profile = to_profile(m, wheelchair);
 
     if (profile != osr::search_profile::kWheelchair) {
@@ -503,7 +508,9 @@ std::pair<std::vector<api::Itinerary>, n::duration_t> routing::route_direct(
     n::unixtime_t const start_time,
     bool arriveBy,
     bool wheelchair,
-    std::chrono::seconds max) const {
+    std::chrono::seconds max,
+    double const max_matching_distance,
+    double const fastest_direct_factor) const {
   if (!w_ || !l_) {
     return {};
   }
@@ -518,7 +525,7 @@ std::pair<std::vector<api::Itinerary>, n::duration_t> routing::route_direct(
         (!omit_walk && m == api::ModeEnum::WALK)) {
       auto itinerary =
           route(*w_, *l_, gbfs_rd, e, from, to, m, wheelchair, start_time,
-                std::nullopt, {}, cache, *blocked, max);
+                std::nullopt, max_matching_distance, {}, cache, *blocked, max);
       if (itinerary.legs_.empty()) {
         continue;
       }
@@ -546,10 +553,11 @@ std::pair<std::vector<api::Itinerary>, n::duration_t> routing::route_direct(
           if (!gbfs::products_match(prod, form_factors, propulsion_types)) {
             continue;
           }
-          auto itinerary = route(
-              *w_, *l_, gbfs_rd, e, from, to, m, wheelchair, start_time,
-              std::nullopt, gbfs::gbfs_products_ref{provider->idx_, prod.idx_},
-              cache, *blocked, max);
+          auto itinerary =
+              route(*w_, *l_, gbfs_rd, e, from, to, m, wheelchair, start_time,
+                    std::nullopt, max_matching_distance,
+                    gbfs::gbfs_products_ref{provider->idx_, prod.idx_}, cache,
+                    *blocked, max);
           if (itinerary.legs_.empty()) {
             continue;
           }
@@ -792,7 +800,10 @@ std::pair<std::vector<api::Itinerary>, n::duration_t> routing::route_direct(
       }
     }
   }
-  return {itineraries, fastest_direct};
+  return {itineraries, fastest_direct != kInfinityDuration
+                           ? std::chrono::round<n::duration_t>(
+                                 fastest_direct * fastest_direct_factor)
+                           : fastest_direct};
 }
 
 using stats_map_t = std::map<std::string, std::uint64_t>;
@@ -913,7 +924,7 @@ api::plan_response routing::operator()(boost::urls::url_view const& url) const {
   auto const [start_time, t] = get_start_time(query);
 
   UTL_START_TIMING(direct);
-  auto const [direct, fastest_direct] =
+  auto [direct, fastest_direct] =
       t.has_value() && !direct_modes.empty() && w_ && l_
           ? route_direct(e, gbfs_rd, from_p, to_p, direct_modes,
                          query.directRentalFormFactors_,
@@ -921,7 +932,8 @@ api::plan_response routing::operator()(boost::urls::url_view const& url) const {
                          query.directRentalProviders_, *t, query.arriveBy_,
                          query.pedestrianProfile_ ==
                              api::PedestrianProfileEnum::WHEELCHAIR,
-                         std::chrono::seconds{query.maxDirectTime_})
+                         std::chrono::seconds{query.maxDirectTime_},
+                         query.maxMatchingDistance_, query.fastestDirectFactor_)
           : std::pair{std::vector<api::Itinerary>{}, kInfinityDuration};
   UTL_STOP_TIMING(direct);
 
@@ -929,6 +941,36 @@ api::plan_response routing::operator()(boost::urls::url_view const& url) const {
     utl::verify(tt_ != nullptr && tags_ != nullptr,
                 "mode=TRANSIT requires timetable to be loaded");
 
+    auto const with_odm_pre_transit =
+        utl::find(pre_transit_modes, api::ModeEnum::ODM) !=
+        end(pre_transit_modes);
+    auto const with_odm_post_transit =
+        utl::find(post_transit_modes, api::ModeEnum::ODM) !=
+        end(post_transit_modes);
+    auto const with_odm_direct =
+        utl::find(direct_modes, api::ModeEnum::ODM) != end(direct_modes);
+
+    if (with_odm_pre_transit || with_odm_post_transit || with_odm_direct) {
+      utl::verify(config_.has_odm(), "ODM not configured");
+      return odm::meta_router{*this,
+                              query,
+                              pre_transit_modes,
+                              post_transit_modes,
+                              direct_modes,
+                              from,
+                              to,
+                              from_p,
+                              to_p,
+                              start_time,
+                              direct,
+                              fastest_direct,
+                              with_odm_pre_transit,
+                              with_odm_post_transit,
+                              with_odm_direct}
+          .run();
+    }
+
+    UTL_START_TIMING(query_preparation);
     auto q = n::routing::query{
         .start_time_ = start_time.start_time_,
         .start_match_mode_ = get_match_mode(start),
@@ -1152,7 +1194,14 @@ api::plan_response routing::operator()(boost::urls::url_view const& url) const {
                   w_, l_, pl_, *tt_, *tags_, e, rtt, matches_, shapes_, gbfs_rd,
                   query.pedestrianProfile_ ==
                       api::PedestrianProfileEnum::WHEELCHAIR,
-                  j, start, dest, cache, *blocked);
+                  j, start, dest, cache, *blocked, query.detailedTransfers_,
+                  query.withFares_,
+                  config_.timetable_
+                      .and_then([](config::timetable const& x) {
+                        return std::optional{x.max_matching_distance_};
+                      })
+                      .value_or(kMaxMatchingDistance),
+                  query.maxMatchingDistance_);
             }),
         .previousPageCursor_ =
             fmt::format("EARLIER|{}", to_seconds(r.interval_.from_)),
