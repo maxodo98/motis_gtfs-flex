@@ -25,6 +25,8 @@
 #include "motis/endpoints/routing.h"
 
 #include <nigiri/loader/gtfs/booking_rule.h>
+#include <utl/pipes/unique.h>
+#include <utl/pipes/vec.h>
 
 #include "motis/gbfs/data.h"
 #include "motis/gbfs/mode.h"
@@ -213,8 +215,9 @@ td_offsets_t routing::get_flex_offsets(osr::location const& pos,
   nigiri::hash_map<nigiri::location_idx_t,
                    std::vector<nigiri::routing::td_offset>>
       flex_offsets{};
-  nigiri::hash_map<nigiri::location_idx_t, std::optional<osr::path>>
-      path_cache{};
+
+  nigiri::hash_map<nigiri::location_idx_t, std::optional<osr::path>> path_cache{};
+
   auto day = 0;
   auto const max_days = floor<date::days>(t.to_.time_since_epoch()).count() -
                         floor<date::days>(t.from_.time_since_epoch()).count() +
@@ -274,21 +277,31 @@ td_offsets_t routing::get_flex_offsets(osr::location const& pos,
             dropoff_window = window;
           }
 
+          auto stops = std::vector<nigiri::location_idx_t>{};
+
+          auto stops_radius = loc_tree_->in_radius(pos.pos_, get_max_distance(osr::search_profile::kFlex, max));
+          auto stops_within = std::unordered_set<nigiri::location_idx_t>{tt_->geometry_locations_within_[target_flex_stop].begin(), tt_->geometry_locations_within_[target_flex_stop].end()};
+          stops.reserve(stops_within.size());
+
+          for (auto const stop : stops_radius) {
+            if (stops_within.contains(stop) && tt_->has_trips_[stop]) {
+              stops_within.erase(stop);
+              stops.emplace_back(stop);
+            }
+          }
+
           std::cout << "\tnum stops: "
-                    << tt_->geometry_locations_within_[target_flex_stop].size()
+                    << stops.size()
                     << std::endl;
           for (auto const stop :
-               tt_->geometry_locations_within_[target_flex_stop]) {
-            if (!tt_->has_trips_[stop]) {
-              continue;
-            }
+               stops) {
             auto const target_pos = tt_->locations_.coordinates_[stop];
             auto const path = utl::get_or_create(path_cache, stop, [&] {
               return get_path(
                   *w_, *l_,
                   inverse_pos ? osr::location{.pos_ = target_pos} : pos,
                   inverse_pos ? pos : osr::location{.pos_ = target_pos},
-                  osr::search_profile::kCar, current_day,
+                  osr::search_profile::kFlex, current_day,
                   static_cast<osr::cost_t>(max.count()));
             });
 
@@ -929,6 +942,7 @@ api::plan_response routing::operator()(boost::urls::url_view const& url) const {
     utl::verify(tt_ != nullptr && tags_ != nullptr,
                 "mode=TRANSIT requires timetable to be loaded");
 
+    nigiri::hash_map<nigiri::location_idx_t, std::optional<osr::path>> path_cache{};
     auto q = n::routing::query{
         .start_time_ = start_time.start_time_,
         .start_match_mode_ = get_match_mode(start),
