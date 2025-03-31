@@ -293,7 +293,8 @@ td_offsets_t routing::get_flex_offsets(osr::location const& pos,
               stops.emplace_back(stop);
               if (!path_cache.contains(stop)) {
                 auto const& coord = tt_->locations_.coordinates_[stop];
-                osr_stops.emplace_back(coord, osr::level_t{});
+                osr_stops.emplace_back(coord,
+                                       pl_->get_level(*w_, (*matches_)[stop]));
                 osr_locations.emplace_back(stop);
               }
             }
@@ -309,8 +310,7 @@ td_offsets_t routing::get_flex_offsets(osr::location const& pos,
             path_cache.emplace(osr_locations[i], paths[i]);
           }
 
-          for (auto i = 0; i < stops.size(); ++i) {
-            auto const& stop = stops[i];
+          for (auto stop : stops) {
             if (!path_cache.contains(stop)) {
               continue;
             }
