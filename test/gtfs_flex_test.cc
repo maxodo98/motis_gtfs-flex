@@ -402,7 +402,7 @@ r_verbindung,a_1,,Umstieg,100
 # stop_times.txt
 trip_id,arrival_time,departure_time,stop_id,location_group_id,location_id,stop_sequence,start_pickup_drop_off_window,end_pickup_drop_off_window,pickup_booking_rule_id,drop_off_booking_rule_id,stop_headsign,pickup_type,drop_off_type
 hochschulen_n_kapellenplatzviertel,,,,,hochschulen,,08:00:00,20:00:00,,,,2,1
-hochschulen_n_kapellenplatzviertel,,,,,hochschulen,,08:00:00,20:00:00,,,,2,1
+hochschulen_n_kapellenplatzviertel,,,,,kapellenplatzviertel,,08:00:00,20:00:00,,,,1,2
 t_johannesviertel,,,,,johannesviertel,,08:00:00,20:00:00,b_eine_stunde,b_eine_stunde,,2,2
 lichtwiese_komponistenviertel,,,,,lichtwiese,,10:00:00,18:00:00,,,,2,2
 lichtwiese_komponistenviertel,,,,,komponistenviertel,,08:00:00,16:30:00,b_eine_stunde,b_eine_stunde,,1,2
@@ -637,7 +637,7 @@ auto const print_short = [](std::ostream& out, api::Itinerary const& j) {
 
 using namespace std::chrono_literals;
 
-TEST(motis, direct_depature) {
+TEST(motis, gtfs_flex_direct_depature) {
   auto ec = std::error_code{};
   std::filesystem::remove_all("test/data", ec);
 
@@ -656,11 +656,11 @@ TEST(motis, direct_depature) {
   auto d = import(c, "test/data", true);
 
   auto const routing = utl::init_from<ep::routing>(d).value();
-  openapi::now_test = date::sys_days{date::January / 02 / 2025} + 8h + 30min;
+  openapi::now_test = date::sys_days{date::January / 02 / 2025} + 4h + 30min;
   auto plan_response = routing(
       "?fromPlace=49.86576808937855,8.650554050873524"
       "&toPlace=49.86768861746879,8.665222857978648"
-      "&time=2025-01-02T09:00Z"
+      "&time=2025-01-02T07:00Z"
       "&timetableView=false"
       "&useRoutedTransfers=false"
       "&directModes=FLEX"
@@ -673,13 +673,13 @@ TEST(motis, direct_depature) {
   }
 
   EXPECT_EQ(
-      R"(date=2025-01-02, start=09:30, end=09:32, duration=00:32, transfers=0, legs=[
-    (from=- geometry=- [track=-, scheduled_track=-, level=0], to=- geometry=- [track=-, scheduled_track=-, level=0], start=2025-01-02 09:30, mode="FLEX", trip="flex_3", end=2025-01-02 09:32)
+      R"(date=2025-01-02, start=08:00, end=08:02, duration=01:02, transfers=0, legs=[
+    (from=- geometry=- [track=-, scheduled_track=-, level=0], to=- geometry=- [track=-, scheduled_track=-, level=0], start=2025-01-02 08:00, mode="FLEX", trip="flex_3", end=2025-01-02 08:02)
 ])",
       ss.str());
 }
 
-TEST(motis, direct_arrival) {
+TEST(motis, gtfs_flex_direct_arrival) {
   std::cout << "Current working directory: " << std::filesystem::current_path()
             << std::endl;
   auto ec = std::error_code{};
@@ -724,7 +724,7 @@ TEST(motis, direct_arrival) {
       ss.str());
 }
 
-TEST(motis, simple_offsets_departure) {
+TEST(motis, gtfs_flex_simple_offsets_departure) {
   auto ec = std::error_code{};
   std::filesystem::remove_all("test/data", ec);
 
@@ -771,7 +771,7 @@ TEST(motis, simple_offsets_departure) {
       ss.str());
 }
 
-TEST(motis, simple_offsets_arrival) {
+TEST(motis, gtfs_flex_simple_offsets_arrival) {
   auto ec = std::error_code{};
   std::filesystem::remove_all("test/data", ec);
 
@@ -819,7 +819,7 @@ TEST(motis, simple_offsets_arrival) {
       ss.str());
 }
 
-TEST(motis, complex_mixed_offsets) {
+TEST(motis, gtfs_flex_complex_mixed_offsets) {
   auto ec = std::error_code{};
   std::filesystem::remove_all("test/data", ec);
 
@@ -892,7 +892,7 @@ TEST(motis, complex_mixed_offsets) {
       ss.str());
 }
 
-TEST(motis, complex_booking_times) {
+TEST(motis, gtfs_flex_complex_booking_times) {
   auto ec = std::error_code{};
   std::filesystem::remove_all("test/data", ec);
 
@@ -972,29 +972,3 @@ TEST(motis, complex_booking_times) {
 ])",
       ss.str());
 }
-
-TEST(motis, real_data_swiss) {
-  auto ec = std::error_code{};
-  std::filesystem::remove_all("test/data", ec);
-
-  auto const c = config{
-      .server_ = {{.web_folder_ = "ui/build", .n_threads_ = 1U}},
-      .osm_ = {"test/resources/gtfs-flex/switzerland.osm.pbf"},
-      .timetable_ =
-          config::timetable{
-              .first_day_ = "2025-01-01",
-              .num_days_ = 365,
-              .datasets_ = {{"test", {.path_ = std::string{kGTFS_complex}}}}},
-      .street_routing_ = true,
-      .osr_footpath_ = false,
-      .geocoding_ = false,
-      .reverse_geocoding_ = false};
-  auto d = import(c, "test/data", true);
-  auto const max = osr::cost_t{900};
-
-  auto const routing = utl::init_from<ep::routing>(d).value();
-
-  openapi::now_test = date::sys_days{date::January / 02 / 2025} + 7h + 0min;
-}
-
-TEST(motis, real_data_australia) {}

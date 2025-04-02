@@ -953,8 +953,6 @@ api::plan_response routing::operator()(boost::urls::url_view const& url) const {
     utl::verify(tt_ != nullptr && tags_ != nullptr,
                 "mode=TRANSIT requires timetable to be loaded");
 
-    nigiri::hash_map<nigiri::location_idx_t, std::optional<osr::path>>
-        path_cache{};
     auto q = n::routing::query{
         .start_time_ = start_time.start_time_,
         .start_match_mode_ = get_match_mode(start),
@@ -1022,21 +1020,20 @@ api::plan_response routing::operator()(boost::urls::url_view const& url) const {
                     results.insert(tmp.begin(), tmp.end());
                   }
 
-                  if (rt_->e_ == nullptr) {
-                    return results;
+                  if (rt_->e_ != nullptr) {
+                    auto const tmp = get_td_offsets(
+                        *e, pos, dir, start_modes,
+                        query.pedestrianProfile_ ==
+                            api::PedestrianProfileEnum::WHEELCHAIR,
+                        std::chrono::seconds{query.maxPreTransitTime_});
+                    for (auto const& [key, value] : tmp) {
+                      auto& entry = utl::get_or_create(results, key, []() {
+                        return std::vector<nigiri::routing::td_offset>{};
+                      });
+                      entry.insert(entry.end(), value.begin(), value.end());
+                    }
                   }
 
-                  auto const tmp = get_td_offsets(
-                      *e, pos, dir, start_modes,
-                      query.pedestrianProfile_ ==
-                          api::PedestrianProfileEnum::WHEELCHAIR,
-                      std::chrono::seconds{query.maxPreTransitTime_});
-                  for (auto const& [key, value] : tmp) {
-                    auto& entry = utl::get_or_create(results, key, []() {
-                      return std::vector<nigiri::routing::td_offset>{};
-                    });
-                    entry.insert(entry.end(), value.begin(), value.end());
-                  }
                   return results;
                 }},
             start),
@@ -1071,19 +1068,18 @@ api::plan_response routing::operator()(boost::urls::url_view const& url) const {
                         start_time.start_time_);
                     results.insert(tmp.begin(), tmp.end());
                   }
-                  if (rt_->e_ == nullptr) {
-                    return results;
-                  }
-                  auto const tmp = get_td_offsets(
-                      *e, pos, dir, dest_modes,
-                      query.pedestrianProfile_ ==
-                          api::PedestrianProfileEnum::WHEELCHAIR,
-                      std::chrono::seconds{query.maxPostTransitTime_});
-                  for (auto const& [key, value] : tmp) {
-                    auto& entry = utl::get_or_create(results, key, []() {
-                      return std::vector<nigiri::routing::td_offset>{};
-                    });
-                    entry.insert(entry.end(), value.begin(), value.end());
+                  if (rt_->e_ != nullptr) {
+                    auto const tmp = get_td_offsets(
+                        *e, pos, dir, dest_modes,
+                        query.pedestrianProfile_ ==
+                            api::PedestrianProfileEnum::WHEELCHAIR,
+                        std::chrono::seconds{query.maxPostTransitTime_});
+                    for (auto const& [key, value] : tmp) {
+                      auto& entry = utl::get_or_create(results, key, []() {
+                        return std::vector<nigiri::routing::td_offset>{};
+                      });
+                      entry.insert(entry.end(), value.begin(), value.end());
+                    }
                   }
                   return results;
                 }},
@@ -1129,9 +1125,47 @@ api::plan_response routing::operator()(boost::urls::url_view const& url) const {
     // TODO DELETE
     std::cout << "---Offsets:---" << std::endl;
     std::cout << "\tNum Start Offsets: " << q.start_.size() << std::endl;
+    for (auto const& offset : q.start_) {
+      std::cout << "{Transportmode: " << offset.transport_mode_id_
+                << ", Duration: " << offset.duration_ << ", Target"
+                << offset.target_ << "}, ";
+    }
+    std::cout << std::endl;
     std::cout << "\tNum Dest Offsets: " << q.destination_.size() << std::endl;
+    for (auto const& offset : q.destination_) {
+      std::cout << "{Transportmode: " << offset.transport_mode_id_
+                << ", Duration: " << offset.duration_ << ", Target"
+                << offset.target_ << "}, ";
+    }
+    std::cout << std::endl;
     std::cout << "\tStart td_Offsets: " << q.td_start_.size() << std::endl;
+    for (auto const& entry : q.td_start_) {
+      std::cout << "{loaction: "
+                << std::string(tt_->locations_.ids_[entry.first].begin(),
+                               tt_->locations_.ids_[entry.first].end())
+                << ", Offsets: [";
+      for (auto const& offset : entry.second) {
+        std::cout << "(Transportmode: " << offset.transport_mode_id_
+                  << ", duration: " << offset.duration_
+                  << ", valid_from: " << offset.valid_from_ << "), ";
+      }
+      std::cout << "], ";
+    }
+    std::cout << std::endl;
     std::cout << "\tDest td_Offsets: " << q.td_dest_.size() << std::endl;
+    for (auto const& entry : q.td_dest_) {
+      std::cout << "{loaction: "
+                << std::string(tt_->locations_.ids_[entry.first].begin(),
+                               tt_->locations_.ids_[entry.first].end())
+                << ", Offsets: [";
+      for (auto const& offset : entry.second) {
+        std::cout << "(Transportmode: " << offset.transport_mode_id_
+                  << ", duration: " << offset.duration_
+                  << ", valid_from: " << offset.valid_from_ << "), ";
+      }
+      std::cout << "], ";
+    }
+    std::cout << std::endl;
     std::cout << "----------" << std::endl;
     // END
 

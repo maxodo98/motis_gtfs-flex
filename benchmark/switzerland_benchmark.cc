@@ -120,7 +120,7 @@ TEST(motis, switzerland) {
       "&time=2025-01-05T20:00Z"
       "&timetableView=false"
       "&useRoutedTransfers=false"
-      "&directModes=FLEX"
+      "&directModes=CAR"
       "&preTransitModes="
       "&postTransitModes=");
   UTL_STOP_TIMING(timer);
@@ -151,8 +151,8 @@ TEST(motis, switzerland) {
       "&timetableView=false"
       "&useRoutedTransfers=false"
       "&directModes="
-      "&preTransitModes=FLEX"
-      "&postTransitModes=FLEX");
+      "&preTransitModes=CAR"
+      "&postTransitModes=CAR");
   UTL_STOP_TIMING(timer2);
   ss = std::stringstream{};
   for (auto const& j : plan_response.itineraries_) {
@@ -181,8 +181,8 @@ TEST(motis, switzerland) {
       "&timetableView=false"
       "&useRoutedTransfers=false"
       "&directModes="
-      "&preTransitModes=FLEX"
-      "&postTransitModes=FLEX");
+      "&preTransitModes=CAR"
+      "&postTransitModes=CAR");
   UTL_STOP_TIMING(timer3);
   ss = std::stringstream{};
   for (auto const& j : plan_response.itineraries_) {
@@ -286,65 +286,64 @@ TEST(motis, australia) {
   EXPECT_EQ(R"()", ss.str());
   std::cout << "Duration (ms): " << UTL_TIMING_MS(timer2) << std::endl;
 
-  // // clang-format off
-  // /*  Test Case:      Trip with many stops
-  //  *  From-Geometry:  area_400a, area_400b, area_400c
-  //  *  To-Geometry:    -
-  //  *  From-Stops:     647, 607, 458
-  //  *  To-Stops:       -
-  //  *  Distance:       ca. 4km
-  //  */
-  // // clang-format on
-  // std::cout << "----------004km----------" << std::endl;
-  // openapi::now_test = date::sys_days{date::March / 02 / 2025} + 8h + 30min;
-  // UTL_START_TIMING(timer4);
-  // plan_response = routing(
-  //     "?fromPlace=-33.69792666305133,150.92295041547175"
-  //     "&toPlace=-33.77558246783908,150.91374511466796"
-  //     "&time=2025-03-03T9:15Z"
-  //     "&timetableView=false"
-  //     "&useRoutedTransfers=false"
-  //     "&directModes="
-  //     "&preTransitModes=FLEX"
-  //     "&postTransitModes=WALK");
-  // UTL_STOP_TIMING(timer4);
-  // ss = std::stringstream{};
-  // for (auto const& j : plan_response.itineraries_) {
-  //   print_short(ss, j);
-  // }
-  //
-  // EXPECT_EQ(R"()", ss.str());
-  // std::cout << "Direct Duration (ms): " << UTL_TIMING_MS(timer4) <<
-  // std::endl;
+  // clang-format off
+  /*  Test Case:      Trip with many stops
+   *  From-Geometry:  area_400a, area_400b, area_400c
+   *  To-Geometry:    -
+   *  From-Stops:     647, 607, 458
+   *  To-Stops:       -
+   *  Distance:       ca. 4km
+   */
+  // clang-format on
+  std::cout << "----------004km----------" << std::endl;
+  openapi::now_test = date::sys_days{date::March / 02 / 2025} + 8h + 30min;
+  UTL_START_TIMING(timer4);
+  plan_response = routing(
+      "?fromPlace=-33.69792666305133,150.92295041547175"
+      "&toPlace=-33.77558246783908,150.91374511466796"
+      "&time=2025-03-03T9:15Z"
+      "&timetableView=false"
+      "&useRoutedTransfers=false"
+      "&directModes="
+      "&preTransitModes=FLEX"
+      "&postTransitModes=WALK");
+  UTL_STOP_TIMING(timer4);
+  ss = std::stringstream{};
+  for (auto const& j : plan_response.itineraries_) {
+    print_short(ss, j);
+  }
 
-  // // clang-format off
-  // /*  Test Case:      Trip with many stops
-  //  *  From-Geometry:  area_400a, area_400b, area_400c
-  //  *  To-Geometry:    -
-  //  *  From-Stops:     647, 607, 458
-  //  *  To-Stops:       -
-  //  *  Distance:       ca. 4km
-  //  */
-  // // clang-format on
-  // std::cout << "----------004km----------" << std::endl;
-  // openapi::now_test = date::sys_days{date::March / 02 / 2025} + 8h + 30min;
-  // UTL_START_TIMING(timer3);
-  // plan_response = routing(
-  //     "?fromPlace=-33.86079160281717,151.10353392308656"
-  //     "&toPlace=-33.889436966588086,151.12571457725858"
-  //     "&time=2025-03-19T21:00Z"
-  //     "&timetableView=false"
-  //     "&useRoutedTransfers=false"
-  //     "&directModes="
-  //     "&preTransitModes=FLEX"
-  //     "&postTransitModes=WALK");
-  // UTL_STOP_TIMING(timer3);
-  // ss = std::stringstream{};
-  // for (auto const& j : plan_response.itineraries_) {
-  //   print_short(ss, j);
-  // }
-  //
-  // EXPECT_EQ(R"()", ss.str());
-  // std::cout << "Direct Duration (ms): " << UTL_TIMING_MS(timer3) <<
-  // std::endl;
+  EXPECT_EQ(R"()", ss.str());
+  std::cout << "Direct Duration (ms): " << UTL_TIMING_MS(timer4) <<
+  std::endl;
+
+  // clang-format off
+  /*  Test Case:      Trip with many stops
+   *  From-Geometry:  area_400a, area_400b, area_400c
+   *  To-Geometry:    -
+   *  From-Stops:     647, 607, 458
+   *  To-Stops:       -
+   *  Distance:       ca. 4km
+   */
+  // clang-format on
+  std::cout << "----------004km----------" << std::endl;
+  openapi::now_test = date::sys_days{date::March / 02 / 2025} + 8h + 30min;
+  UTL_START_TIMING(timer3);
+  plan_response = routing(
+      "?fromPlace=-33.86079160281717,151.10353392308656"
+      "&toPlace=-33.889436966588086,151.12571457725858"
+      "&time=2025-03-19T21:00Z"
+      "&timetableView=false"
+      "&useRoutedTransfers=false"
+      "&directModes="
+      "&preTransitModes=FLEX"
+      "&postTransitModes=WALK");
+  UTL_STOP_TIMING(timer3);
+  ss = std::stringstream{};
+  for (auto const& j : plan_response.itineraries_) {
+    print_short(ss, j);
+  }
+
+  EXPECT_EQ(R"()", ss.str());
+  std::cout << "Direct Duration (ms): " << UTL_TIMING_MS(timer3) << std::endl;
 }
