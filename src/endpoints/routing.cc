@@ -1125,47 +1125,47 @@ api::plan_response routing::operator()(boost::urls::url_view const& url) const {
     // TODO DELETE
     std::cout << "---Offsets:---" << std::endl;
     std::cout << "\tNum Start Offsets: " << q.start_.size() << std::endl;
-    for (auto const& offset : q.start_) {
-      std::cout << "{Transportmode: " << offset.transport_mode_id_
-                << ", Duration: " << offset.duration_ << ", Target"
-                << offset.target_ << "}, ";
-    }
-    std::cout << std::endl;
+    // for (auto const& offset : q.start_) {
+    //   std::cout << "{Transportmode: " << offset.transport_mode_id_
+    //             << ", Duration: " << offset.duration_ << ", Target"
+    //             << offset.target_ << "}, ";
+    // }
+    // std::cout << std::endl;
     std::cout << "\tNum Dest Offsets: " << q.destination_.size() << std::endl;
-    for (auto const& offset : q.destination_) {
-      std::cout << "{Transportmode: " << offset.transport_mode_id_
-                << ", Duration: " << offset.duration_ << ", Target"
-                << offset.target_ << "}, ";
-    }
-    std::cout << std::endl;
+    // for (auto const& offset : q.destination_) {
+    //   std::cout << "{Transportmode: " << offset.transport_mode_id_
+    //             << ", Duration: " << offset.duration_ << ", Target"
+    //             << offset.target_ << "}, ";
+    // }
+    // std::cout << std::endl;
     std::cout << "\tStart td_Offsets: " << q.td_start_.size() << std::endl;
-    for (auto const& entry : q.td_start_) {
-      std::cout << "{loaction: "
-                << std::string(tt_->locations_.ids_[entry.first].begin(),
-                               tt_->locations_.ids_[entry.first].end())
-                << ", Offsets: [";
-      for (auto const& offset : entry.second) {
-        std::cout << "(Transportmode: " << offset.transport_mode_id_
-                  << ", duration: " << offset.duration_
-                  << ", valid_from: " << offset.valid_from_ << "), ";
-      }
-      std::cout << "], ";
-    }
-    std::cout << std::endl;
+    // for (auto const& entry : q.td_start_) {
+    //   std::cout << "{loaction: "
+    //             << std::string(tt_->locations_.ids_[entry.first].begin(),
+    //                            tt_->locations_.ids_[entry.first].end())
+    //             << ", Offsets: [";
+    //   for (auto const& offset : entry.second) {
+    //     std::cout << "(Transportmode: " << offset.transport_mode_id_
+    //               << ", duration: " << offset.duration_
+    //               << ", valid_from: " << offset.valid_from_ << "), ";
+    //   }
+    //   std::cout << "], ";
+    // }
+    // std::cout << std::endl;
     std::cout << "\tDest td_Offsets: " << q.td_dest_.size() << std::endl;
-    for (auto const& entry : q.td_dest_) {
-      std::cout << "{loaction: "
-                << std::string(tt_->locations_.ids_[entry.first].begin(),
-                               tt_->locations_.ids_[entry.first].end())
-                << ", Offsets: [";
-      for (auto const& offset : entry.second) {
-        std::cout << "(Transportmode: " << offset.transport_mode_id_
-                  << ", duration: " << offset.duration_
-                  << ", valid_from: " << offset.valid_from_ << "), ";
-      }
-      std::cout << "], ";
-    }
-    std::cout << std::endl;
+    // for (auto const& entry : q.td_dest_) {
+    //   std::cout << "{loaction: "
+    //             << std::string(tt_->locations_.ids_[entry.first].begin(),
+    //                            tt_->locations_.ids_[entry.first].end())
+    //             << ", Offsets: [";
+    //   for (auto const& offset : entry.second) {
+    //     std::cout << "(Transportmode: " << offset.transport_mode_id_
+    //               << ", duration: " << offset.duration_
+    //               << ", valid_from: " << offset.valid_from_ << "), ";
+    //   }
+    //   std::cout << "], ";
+    // }
+    // std::cout << std::endl;
     std::cout << "----------" << std::endl;
     // END
 
