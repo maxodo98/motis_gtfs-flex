@@ -7,9 +7,9 @@
   branch=master
   commit=6362f3ad8c3133a0abf64e5d8c9ea3e21f531ee8
 [osr]
-  url=git@github.com:motis-project/osr.git
+  url=git@github.com:maxodo98/osr_gtfs_flex.git
   branch=master
-  commit=478bed28978461f0728c311899cc6bb22f0dd591
+  commit=6164d99ec81d3283af4687583026484a3a5aea4f
 [utl]
   url=git@github.com:motis-project/utl.git
   branch=master
@@ -23,13 +23,13 @@
   branch=master
   commit=34a46558609e05865c197f0260ab36daa7cbbb6e
 [net]
-  url=git@github.com:motis-project/net.git
+  url=git@github.com:maxodo98/net_test.git
   branch=master
-  commit=6a457f5eaa077078fcac4153c5a178657737eee8
+  commit=bed3124a5312b2457f860d58a7df71a935814d3e
 [openapi-cpp]
-  url=git@github.com:triptix-tech/openapi-cpp.git
+  url=git@github.com:maxodo98/openapi-cpp_test.git
   branch=master
-  commit=688d45bd96addb26eaccc5d264761030e5ef43f9
+  commit=c1940b68d219e46fd8b3998212625a60cbb983a4
 [unordered_dense]
   url=git@github.com:motis-project/unordered_dense.git
   branch=master

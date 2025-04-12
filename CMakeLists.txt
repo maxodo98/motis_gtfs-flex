@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(motis)
+project(motis LANGUAGES C CXX ASM)
 
 set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
 
@@ -154,12 +154,13 @@ target_link_libraries(motis
 # --- BENCHMARK ---
 configure_file(
         ${CMAKE_CURRENT_SOURCE_DIR}/benchmark/benchmark_dir.h.in
-        ${CMAKE_CURRENT_BINARY_DIR}/benchmark/benchmark_dir.h.in
+        ${CMAKE_CURRENT_BINARY_DIR}/generated/benchmark_dir.h
 )
 file(GLOB_RECURSE motis-benchmark-files benchmark/*.cc)
 add_executable(motis-benchmark ${motis-benchmark-files})
+target_include_directories(motis-benchmark INTERFACE ${CMAKE_CURRENT_BINARY_DIR}/generated)
 set_target_properties(motis-benchmark PROPERTIES
-        VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+        VS_DEBUGGER_WORKING_DIRECTORY "D:/Users/maxod/CLionProjects/motis_gtfs_flex/"
 )
 target_link_libraries(motis-benchmark motislib gtest web-server ianatzdb-res)
 target_compile_options(motis-benchmark PRIVATE ${motis-compile-options})

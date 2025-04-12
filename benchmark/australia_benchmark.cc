@@ -77,7 +77,7 @@ TEST(motis, australia) {
   std::cout << "Current working directory: " << std::filesystem::current_path()
             << std::endl;
   auto const c = config{
-      .osm_ = {"C:/users/maxod/clionprojects/motis_gtfs-flex/benchmark/"
+      .osm_ = {"benchmark/"
                "resources/australia/australia.osm.pbf"},
       .timetable_ = {config::timetable{
           .first_day_ = "2024-12-15",
@@ -85,18 +85,16 @@ TEST(motis, australia) {
           .with_shapes_ = false,
           .datasets_ =
               {{"regular",
-                {.path_ = "C:/users/maxod/clionprojects/motis_gtfs-flex/"
-                          "benchmark/resources/australia/australia_gtfs.zip"}},
+                {.path_ = "benchmark/resources/australia/australia_gtfs.zip"}},
                {"flex",
-                {.path_ = "C:/users/maxod/clionprojects/motis_gtfs-flex/"
-                          "benchmark/resources/australia/australia_gtfs_flex.zip"}}}}},
+                {.path_ = "benchmark/resources/australia/australia_gtfs_flex.zip"}}}}},
       .street_routing_ = true,
       .osr_footpath_ = true,
       .geocoding_ = true};
 
   auto d = import(
       c,
-      "C:/users/maxod/clionprojects/motis_gtfs-flex/benchmark/data-australia",
+      "benchmark/data-australia",
       true);
 
   auto const routing = utl::init_from<ep::routing>(d).value();
