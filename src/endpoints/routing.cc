@@ -319,14 +319,20 @@ td_offsets_t routing::get_flex_offsets(osr::location const& pos,
             if (!path.has_value()) {
               continue;
             }
-            auto const travel_time = nigiri::duration_t{
+            auto travel_time = nigiri::duration_t{
                 static_cast<uint32_t>(std::ceil(path.value().cost_ / 60.0))};
+
+            if (std::max(dropoff_window.start_ - pickup_window.end_,
+                         nigiri::duration_t::zero()) > travel_time) {
+              travel_time = dropoff_window.start_ - pickup_window.end_;
+            }
+
             auto const earliest_dep_time =
                 current_day + std::max(pickup_window.start_,
                                        dropoff_window.start_ - travel_time);
             auto const latest_dep_time =
                 current_day +
-                std::min(pickup_window.end_, dropoff_window.end_) - travel_time;
+                std::min(pickup_window.end_, dropoff_window.end_ - travel_time);
             if (floor<date::days>(current_day.time_since_epoch()).count() !=
                 floor<date::days>(earliest_dep_time.time_since_epoch())
                     .count()) {
@@ -679,10 +685,17 @@ std::pair<std::vector<api::Itinerary>, n::duration_t> routing::route_direct(
       nigiri::unixtime_t const now =
           std::chrono::time_point_cast<n::i32_minutes>(*openapi::now());
       nigiri::unixtime_t const start_day = floor<date::days>(start_time);
-      hash_map<nigiri::location_idx_t, std::optional<osr::path>> path_cache;
-      auto const source_flex_stops =
-          tt_->lookup_td_stops(geo::latlng{from.lat_, from.lon_});
-      for (auto const source_flex_stop : source_flex_stops) {
+
+      auto const path = get_path(
+          *w_, *l_, osr::location{.pos_ = geo::latlng{from.lat_, from.lon_}},
+          osr::location{.pos_ = geo::latlng{to.lat_, to.lon_}},
+          osr::search_profile::kCar, start_time, max.count());
+      if (!path.has_value()) {
+        continue;
+      }
+
+      for (auto const source_flex_stop :
+           tt_->lookup_td_stops(geo::latlng{from.lat_, from.lon_}, 0.0)) {
         for (auto const trip :
              tt_->geometry_idx_to_trip_idxs_[source_flex_stop]) {
           if (!is_available(trip, start_time)) {
@@ -711,80 +724,39 @@ std::pair<std::vector<api::Itinerary>, n::duration_t> routing::route_direct(
             if (dropoff_skip) {
               continue;
             }
-            auto const path = get_path(
-                *w_, *l_,
-                osr::location{.pos_ = geo::latlng{from.lat_, from.lon_}},
-                osr::location{.pos_ = geo::latlng{to.lat_, to.lon_}},
-                osr::search_profile::kCar, start_time, max.count());
-            if (!path.has_value()) {
-              continue;
-            }
-
             auto travel_time = nigiri::duration_t{
                 static_cast<std::uint16_t>(std::ceil(path->cost_ / 60.0))};
 
-            nigiri::unixtime_t depature_time;
-
-            if (arriveBy) {
-              if (dropoff_window.start_ - pickup_window.end_ > travel_time) {
-                if (start_time < start_day + dropoff_window.start_) {
-                  continue;
-                }
-                depature_time = std::min(start_time - travel_time,
-                                         start_day + pickup_window.end_);
-                travel_time = std::max(
-                    travel_time,
-                    nigiri::duration_t{(start_day + dropoff_window.start_) -
-                                       depature_time});
-              } else {
-                depature_time = std::min(
-                    start_day + dropoff_window.end_ - travel_time,
-                    std::max(start_day + pickup_window.start_,
-                             std::min(max_dep_time,
-                                      std::min(max_arr_time - travel_time,
-                                               start_time - travel_time))));
-              }
-
-            } else {
-              auto const earliest_depature_time =
-                  std::max(now + std::max(pickup_booking_time,
-                                          dropoff_booking_time - travel_time),
-                           start_time);
-              if (floor<date::days>(earliest_depature_time) >
-                  floor<date::days>(start_time)) {  // TODO oke?
-                continue;
-              }
-              if (earliest_depature_time > max_dep_time ||
-                  earliest_depature_time > max_arr_time - travel_time) {
-                continue;
-              }
-              if (dropoff_window.start_ - pickup_window.end_ > travel_time) {
-                if (start_time > start_day + pickup_window.end_) {
-                  continue;
-                }
-                depature_time =
-                    std::min(start_time, start_day + pickup_window.end_);
-                travel_time = std::max(
-                    travel_time,
-                    nigiri::duration_t{(start_day + dropoff_window.start_) -
-                                       depature_time});
-              } else {
-                auto const window_start = std::max(
-                    pickup_window.start_, dropoff_window.start_ - travel_time);
-                depature_time =
-                    std::min(std::min(std::max(earliest_depature_time,
-                                               start_day + window_start),
-                                      max_dep_time),
-                             max_arr_time - travel_time);
-              }
+            if (std::max(dropoff_window.start_ - pickup_window.end_,
+                         nigiri::duration_t::zero()) > travel_time) {
+              travel_time = dropoff_window.start_ - pickup_window.end_;
             }
 
+            auto booking_time = std::max(pickup_booking_time,
+                                         dropoff_booking_time - travel_time);
+
+            auto earliest_dep_time =
+                std::max({arriveBy ? nigiri::unixtime_t::min() : start_time,
+                          start_day + pickup_window.start_, now + booking_time,
+                          start_day + dropoff_window.start_ - travel_time});
+            auto latest_dep_time =
+                std::min({arriveBy ? start_time - travel_time
+                                   : nigiri::unixtime_t::max(),
+                          start_day + pickup_window.end_,
+                          start_day + dropoff_window.end_ - travel_time,
+                          max_dep_time, max_arr_time - travel_time});
+            if (latest_dep_time < earliest_dep_time) {
+              continue;
+            }
+
+            auto const depature_time =
+                (arriveBy ? latest_dep_time : earliest_dep_time);
             auto const arrival_time = depature_time + travel_time;
-            nigiri::duration_t const duration =
-                arriveBy ? nigiri::duration_t{start_time - depature_time}
+            auto const duration_with_waiting_time =
+                arriveBy ? nigiri::duration_t{start_time - latest_dep_time}
                          : nigiri::duration_t{arrival_time - start_time};
-            if (duration < fastest_direct) {
-              fastest_direct = duration;
+            if (duration_with_waiting_time < fastest_direct) {
+              fastest_direct = duration_with_waiting_time;
             }
             // TODO DELETE PROBABLY
             std::string trip_id = std::string(
@@ -793,9 +765,9 @@ std::pair<std::vector<api::Itinerary>, n::duration_t> routing::route_direct(
             //
 
             auto itinerary = api::Itinerary{
-                .duration_ =
-                    std::chrono::duration_cast<std::chrono::seconds>(duration)
-                        .count(),
+                .duration_ = std::chrono::duration_cast<std::chrono::seconds>(
+                                 duration_with_waiting_time)
+                                 .count(),
                 .startTime_ = depature_time,
                 .endTime_ = arrival_time,
                 .transfers_ = 0};
@@ -1223,6 +1195,4 @@ api::plan_response routing::operator()(boost::urls::url_view const& url) const {
   return {.from_ = to_place(tt_, tags_, w_, pl_, matches_, from),
           .to_ = to_place(tt_, tags_, w_, pl_, matches_, to),
           .direct_ = std::move(direct),
-          .itineraries_ = {}};
-}
-}  // namespace motis::ep
+          .itineraries_ =
