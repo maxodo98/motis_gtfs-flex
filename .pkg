@@ -9,7 +9,7 @@
 [osr]
   url=git@github.com:maxodo98/osr_gtfs_flex.git
   branch=master
-  commit=6164d99ec81d3283af4687583026484a3a5aea4f
+  commit=f3df77606476fefbb6b7eb4854c8f4a2e28e9f80
 [utl]
   url=git@github.com:motis-project/utl.git
   branch=master

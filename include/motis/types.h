@@ -60,7 +60,7 @@ struct flex_id {
 };
 
 struct flex_result {
-  nigiri::duration_t booking_duration;
+  nigiri::i32_minutes booking_duration;
   nigiri::unixtime_t max_time;
   nigiri::stop_window window;
   bool skip;

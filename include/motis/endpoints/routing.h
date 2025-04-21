@@ -47,8 +47,7 @@ struct routing {
                    osr::direction dir,
                    nigiri::interval<nigiri::unixtime_t> t,
                    nigiri::unixtime_t now,
-                   std::chrono::seconds max,
-                   bool inverse_pos) const;
+                   std::chrono::seconds max) const;
 
   // nigiri::hash_map<nigiri::location_idx_t,
   //                  std::vector<nigiri::routing::td_offset>>

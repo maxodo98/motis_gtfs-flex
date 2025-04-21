@@ -27,6 +27,7 @@
 #include <nigiri/loader/gtfs/booking_rule.h>
 #include <utl/pipes/vec.h>
 
+#include "absl/strings/internal/str_format/extension.h"
 #include "motis/gbfs/data.h"
 #include "motis/gbfs/mode.h"
 #include "motis/gbfs/routing_data.h"
@@ -129,8 +130,7 @@ td_offsets_t routing::get_flex_offsets(osr::location const& pos,
                                        osr::direction dir,
                                        nigiri::interval<nigiri::unixtime_t> t,
                                        nigiri::unixtime_t now,
-                                       std::chrono::seconds max,
-                                       bool inverse_pos) const {
+                                       std::chrono::seconds max) const {
   std::cout << "---flex offset:---" << std::endl;
   UTL_START_TIMING(timer_flex_offsets);
   if (!loc_tree_ || !tt_ || !w_) {
@@ -154,61 +154,84 @@ td_offsets_t routing::get_flex_offsets(osr::location const& pos,
     return tt_->bitfields_[tt_->trip_service_[t_idx]][bit];
   };
 
-  auto const process_flex_trip =
-      [](nigiri::timetable const& tt, nigiri::geometry_trip_idx const& id,
-         nigiri::unixtime_t const now, bool const is_pickup) {
-        auto const gt_it = tt.geometry_trip_idxs_.find(id);
-        if (gt_it == end(tt.geometry_trip_idxs_)) {
-          log(nigiri::log_lvl::error, "routing.route_direct",
-              "Unknown geometry-trip ({}, {}) required", id.trip_idx_,
-              id.geometry_idx_);
-          return flex_result{.skip = true};
-        }
-        auto const gt_idx = gt_it->second;
-        auto const type =
-            is_pickup ? tt.pickup_types_[gt_idx] : tt.dropoff_types_[gt_idx];
-        if (type == nigiri::kUnavailableType) {
-          return flex_result{.skip = true};
-        }
-        auto const window = tt.window_times_[gt_idx];
-        auto max_time = nigiri::unixtime_t::max();
-        auto const b_idx = is_pickup ? tt.pickup_booking_rules_[gt_idx]
-                                     : tt.dropoff_booking_rules_[gt_idx];
-        nigiri::duration_t booking_time = nigiri::duration_t::zero();
-        if (b_idx != nigiri::booking_rule_idx_t::invalid()) {
-          auto const booking_rule = tt.booking_rules_[b_idx];
-          switch (booking_rule.type_) {
-            case nigiri::loader::gtfs::Booking_type::kRealTimeBooking: break;
-            case nigiri::loader::gtfs::Booking_type::kSameDayBooking:
-              booking_time +=
-                  nigiri::duration_t{booking_rule.prior_notice_duration_min_};
-              if (booking_rule.prior_notice_duration_max_ != 0) {
-                max_time = now + nigiri::i32_minutes{
-                                     booking_rule.prior_notice_duration_max_};
-              }
-              break;
-            case nigiri::loader::gtfs::Booking_type::kPriorDaysBooking:
-              booking_time +=
-                  nigiri::duration_t{booking_rule.prior_notice_last_day_ * 24 *
-                                     60} -
-                  booking_rule.prior_notice_last_time_;
-              if (booking_rule.prior_notice_start_day_ != 0) {
-                max_time = floor<date::days>(now) +
-                           booking_rule.prior_notice_start_time_ +
-                           nigiri::duration_t{
-                               booking_rule.prior_notice_start_day_ * 24 * 60};
-              }
-              break;
-            default: {
-              // log(nigiri::log_lvl::error, "routing.process_flex_trip",
-              //     "Booking_Rule: {}: Invalid booking type \"{}\"", b_idx,
-              //     type);
-              return flex_result{.skip = true};
-            }
+  auto const process_flex_trip = [](nigiri::timetable const& tt,
+                                    nigiri::geometry_trip_idx const& id,
+                                    nigiri::unixtime_t const now,
+                                    bool const is_pickup) {
+    auto const gt_it = tt.geometry_trip_idxs_.find(id);
+    if (gt_it == end(tt.geometry_trip_idxs_)) {
+      log(nigiri::log_lvl::error, "routing.route_direct",
+          "Unknown geometry-trip ({}, {}) required", id.trip_idx_,
+          id.geometry_idx_);
+      return flex_result{.skip = true};
+    }
+    auto const gt_idx = gt_it->second;
+    auto const type =
+        is_pickup ? tt.pickup_types_[gt_idx] : tt.dropoff_types_[gt_idx];
+    if (type == nigiri::kUnavailableType) {
+      return flex_result{.skip = true};
+    }
+    auto const window = tt.window_times_[gt_idx];
+    auto max_time = nigiri::unixtime_t::max();
+    auto const b_idx = is_pickup ? tt.pickup_booking_rules_[gt_idx]
+                                 : tt.dropoff_booking_rules_[gt_idx];
+    nigiri::i32_minutes booking_time = nigiri::duration_t::zero();
+    if (b_idx != nigiri::booking_rule_idx_t::invalid()) {
+      auto const booking_rule = tt.booking_rules_[b_idx];
+      auto const& bitfield =
+          booking_rule.bitfield_idx_ != nigiri::bitfield_idx_t::invalid()
+              ? tt.bitfields_[booking_rule.bitfield_idx_]
+              : nigiri::bitfield::max();
+      auto const get_num_days = [&](std::uint16_t const booking_days) {
+        auto num_days = 0;
+        auto const current_day_bit =
+            (date::floor<date::days>(tt.internal_interval().clamp(now)) -
+             tt.internal_interval_days().from_)
+                .count();
+        for (auto i = 0;
+             current_day_bit + num_days < bitfield.size() && i < booking_days;
+             ++num_days) {
+          if (bitfield[current_day_bit + num_days]) {
+            ++i;
           }
         }
-        return flex_result{booking_time, max_time, window, false};
+        return num_days;
       };
+      switch (booking_rule.type_) {
+        case nigiri::loader::gtfs::Booking_type::kRealTimeBooking:
+          booking_time = 5min;
+          break;
+        case nigiri::loader::gtfs::Booking_type::kSameDayBooking:
+          booking_time =
+              nigiri::duration_t{booking_rule.prior_notice_duration_min_};
+          if (booking_rule.prior_notice_duration_max_ != 0) {
+            max_time = now + nigiri::i32_minutes{
+                                 booking_rule.prior_notice_duration_max_};
+          }
+          break;
+        case nigiri::loader::gtfs::Booking_type::kPriorDaysBooking:
+          booking_time =
+              nigiri::i32_minutes{
+                  get_num_days(booking_rule.prior_notice_last_day_) * 24 * 60} -
+              booking_rule.prior_notice_last_time_;
+          if (booking_rule.prior_notice_start_day_ != 0) {
+            max_time = floor<date::days>(now) +
+                       nigiri::i32_minutes{
+                           get_num_days(booking_rule.prior_notice_start_day_) *
+                           24 * 60} -
+                       booking_rule.prior_notice_start_time_;
+          }
+          break;
+        default: {
+          // log(nigiri::log_lvl::error, "routing.process_flex_trip",
+          //     "Booking_Rule: {}: Invalid booking type \"{}\"", b_idx,
+          //     type);
+          return flex_result{.skip = true};
+        }
+      }
+    }
+    return flex_result{booking_time, max_time, window, false};
+  };
 
   nigiri::hash_map<nigiri::location_idx_t,
                    std::vector<nigiri::routing::td_offset>>
@@ -236,24 +259,24 @@ td_offsets_t routing::get_flex_offsets(osr::location const& pos,
         if (!isAvailable(trip, current_day)) {
           continue;
         }
-        nigiri::duration_t pickup_booking_time, dropoff_booking_time;
+        nigiri::i32_minutes pickup_booking_time, dropoff_booking_time;
         nigiri::unixtime_t max_dep_time, max_arr_time;
         nigiri::stop_window pickup_window, dropoff_window;
         const auto [booking_duration, max_time, window, skip] =
             process_flex_trip(*tt_,
                               nigiri::geometry_trip_idx{trip, source_flex_stop},
-                              now, !inverse_pos);
+                              now, dir == osr::direction::kForward);
         if (skip) {
           continue;
         }
-        if (inverse_pos) {
-          dropoff_booking_time = booking_duration;
-          max_arr_time = max_time;
-          dropoff_window = window;
-        } else {
+        if (dir == osr::direction::kForward) {
           pickup_booking_time = booking_duration;
           max_dep_time = max_time;
           pickup_window = window;
+        } else {
+          dropoff_booking_time = booking_duration;
+          max_arr_time = max_time;
+          dropoff_window = window;
         }
         std::cout << "\tnum target_flex_stops: "
                   << tt_->trip_idx_to_geometry_idxs_[trip].size() << std::endl;
@@ -262,18 +285,18 @@ td_offsets_t routing::get_flex_offsets(osr::location const& pos,
           const auto [booking_duration, max_time, window, skip] =
               process_flex_trip(
                   *tt_, nigiri::geometry_trip_idx{trip, target_flex_stop}, now,
-                  inverse_pos);
+                  dir == osr::direction::kBackward);
           if (skip) {
             continue;
           }
-          if (inverse_pos) {
-            pickup_booking_time = booking_duration;
-            max_dep_time = max_time;
-            pickup_window = window;
-          } else {
+          if (dir == osr::direction::kForward) {
             dropoff_booking_time = booking_duration;
             max_arr_time = max_time;
             dropoff_window = window;
+          } else {
+            pickup_booking_time = booking_duration;
+            max_dep_time = max_time;
+            pickup_window = window;
           }
 
           auto stops = std::vector<nigiri::location_idx_t>{};
@@ -302,12 +325,22 @@ td_offsets_t routing::get_flex_offsets(osr::location const& pos,
 
           std::cout << "\tnum stops: " << stops.size() << std::endl;
 
+          auto const coordinate = std::vector{pos};
           auto const paths = osr::route(
-              *w_, *l_, osr::search_profile::kFlex, pos, osr_stops,
-              static_cast<osr::cost_t>(max.count()), dir, kMaxMatchingDistance);
+              *w_, *l_, osr::search_profile::kFlex,
+              dir == osr::direction::kForward ? coordinate : osr_stops,
+              dir == osr::direction::kForward ? osr_stops : coordinate,
+              static_cast<osr::cost_t>(max.count()), osr::direction::kForward,
+              kMaxMatchingDistance);
 
-          for (auto i = 0; i < paths.size(); ++i) {
-            path_cache.emplace(osr_locations[i], paths[i]);
+          if (dir == osr::direction::kForward) {
+            for (auto const& [l, p] : utl::zip(osr_locations, paths[0])) {
+              path_cache.emplace(l, p);
+            }
+          } else {
+            for (auto const& [l, p] : utl::zip(osr_locations, paths)) {
+              path_cache.emplace(l, p[0]);
+            }
           }
 
           for (auto stop : stops) {
@@ -781,7 +814,13 @@ std::pair<std::vector<api::Itinerary>, n::duration_t> routing::route_direct(
                 .startTime_ = depature_time,
                 .endTime_ = arrival_time,
                 .distance_ = path->dist_,
-                .tripId_ = trip_id});
+                .tripId_ = trip_id,
+                .from_geometry_ =
+                    std::string(tt_->geometry_ids_[source_flex_stop].begin(),
+                                tt_->geometry_ids_[source_flex_stop].end()),
+                .to_geometry_ =
+                    std::string(tt_->geometry_ids_[target_flex_stop].begin(),
+                                tt_->geometry_ids_[target_flex_stop].end())});
             itineraries.emplace_back(itinerary);
           }
         }
@@ -964,9 +1003,9 @@ api::plan_response routing::operator()(boost::urls::url_view const& url) const {
             utl::overloaded{
                 [&](tt_location) { return td_offsets_t{}; },
                 [&](osr::location const& pos) {
+                  auto results = td_offsets_t{};
                   auto const dir = query.arriveBy_ ? osr::direction::kBackward
                                                    : osr::direction::kForward;
-                  auto results = td_offsets_t{};
                   if (std::ranges::contains(start_modes, api::ModeEnum::FLEX)) {
                     auto const tmp = std::visit(
                         utl::overloaded{
@@ -976,8 +1015,7 @@ api::plan_response routing::operator()(boost::urls::url_view const& url) const {
                                   std::chrono::time_point_cast<n::i32_minutes>(
                                       *openapi::now()),
                                   static_cast<std::chrono::seconds>(
-                                      query.maxPreTransitTime_),
-                                  query.arriveBy_);
+                                      query.maxPreTransitTime_));
                             },
                             [&](nigiri::interval<nigiri::unixtime_t> t) {
                               return get_flex_offsets(
@@ -985,8 +1023,7 @@ api::plan_response routing::operator()(boost::urls::url_view const& url) const {
                                   std::chrono::time_point_cast<n::i32_minutes>(
                                       *openapi::now()),
                                   static_cast<std::chrono::seconds>(
-                                      query.maxPreTransitTime_),
-                                  query.arriveBy_);
+                                      query.maxPreTransitTime_));
                             }},
                         start_time.start_time_);
                     results.insert(tmp.begin(), tmp.end());
@@ -1013,9 +1050,9 @@ api::plan_response routing::operator()(boost::urls::url_view const& url) const {
             utl::overloaded{
                 [&](tt_location) { return td_offsets_t{}; },
                 [&](osr::location const& pos) {
+                  auto results = td_offsets_t{};
                   auto const dir = query.arriveBy_ ? osr::direction::kForward
                                                    : osr::direction::kBackward;
-                  auto results = td_offsets_t{};
                   if (std::ranges::contains(dest_modes, api::ModeEnum::FLEX)) {
                     auto const tmp = std::visit(
                         utl::overloaded{
@@ -1025,8 +1062,7 @@ api::plan_response routing::operator()(boost::urls::url_view const& url) const {
                                   std::chrono::time_point_cast<n::i32_minutes>(
                                       *openapi::now()),
                                   static_cast<std::chrono::seconds>(
-                                      query.maxPostTransitTime_),
-                                  !query.arriveBy_);
+                                      query.maxPostTransitTime_));
                             },
                             [&](nigiri::interval<nigiri::unixtime_t> t) {
                               return get_flex_offsets(
@@ -1034,8 +1070,7 @@ api::plan_response routing::operator()(boost::urls::url_view const& url) const {
                                   std::chrono::time_point_cast<n::i32_minutes>(
                                       *openapi::now()),
                                   static_cast<std::chrono::seconds>(
-                                      query.maxPostTransitTime_),
-                                  !query.arriveBy_);
+                                      query.maxPostTransitTime_));
                             }},
                         start_time.start_time_);
                     results.insert(tmp.begin(), tmp.end());
@@ -1195,4 +1230,7 @@ api::plan_response routing::operator()(boost::urls::url_view const& url) const {
   return {.from_ = to_place(tt_, tags_, w_, pl_, matches_, from),
           .to_ = to_place(tt_, tags_, w_, pl_, matches_, to),
           .direct_ = std::move(direct),
-          .itineraries_ =
+          .itineraries_ = {}};
+}
+
+}  // namespace motis::ep

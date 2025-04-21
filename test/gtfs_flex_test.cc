@@ -674,7 +674,7 @@ TEST(motis, gtfs_flex_direct_depature) {
 
   EXPECT_EQ(
       R"(date=2025-01-02, start=08:00, end=08:02, duration=01:02, transfers=0, legs=[
-    (from=- geometry=- [track=-, scheduled_track=-, level=0], to=- geometry=- [track=-, scheduled_track=-, level=0], start=2025-01-02 08:00, mode="FLEX", trip="flex_3", end=2025-01-02 08:02)
+    (from=- geometry=Startbereich [track=-, scheduled_track=-, level=0], to=- geometry=Zielbereich [track=-, scheduled_track=-, level=0], start=2025-01-02 08:00, mode="FLEX", trip="flex_3", end=2025-01-02 08:02)
 ])",
       ss.str());
 }
@@ -719,7 +719,7 @@ TEST(motis, gtfs_flex_direct_arrival) {
 
   EXPECT_EQ(
       R"(date=2025-01-02, start=08:28, end=08:30, duration=00:32, transfers=0, legs=[
-    (from=- geometry=- [track=-, scheduled_track=-, level=0], to=- geometry=- [track=-, scheduled_track=-, level=0], start=2025-01-02 08:28, mode="FLEX", trip="flex_3", end=2025-01-02 08:30)
+    (from=- geometry=Startbereich [track=-, scheduled_track=-, level=0], to=- geometry=Zielbereich [track=-, scheduled_track=-, level=0], start=2025-01-02 08:28, mode="FLEX", trip="flex_3", end=2025-01-02 08:30)
 ])",
       ss.str());
 }
