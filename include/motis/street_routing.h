@@ -40,24 +40,64 @@ api::Itinerary route(osr::ways const&,
                      osr::bitvec<osr::node_idx_t>& blocked_mem,
                      std::chrono::seconds max = std::chrono::seconds{3600});
 
-api::Itinerary route(osr::ways const&,
-                     osr::lookup const&,
-                     gbfs::gbfs_routing_data&,
-                     elevators const*,
-                     api::Place const& from,
-                     api::Place const& to,
-                     std::string const& from_geo,
-                     std::string const& to_geo,
-                     std::string const& trip,
-                     api::ModeEnum,
-                     bool wheelchair,
-                     nigiri::unixtime_t start_time,
-                     std::optional<nigiri::unixtime_t> end_time,
-                     gbfs::gbfs_products_ref,
-                     street_routing_cache_t&,
-                     osr::bitvec<osr::node_idx_t>& blocked_mem,
-                     bool is_flex = false,
-                     std::chrono::seconds max = std::chrono::seconds{3600});
+api::Itinerary route(
+    osr::ways const&,
+    osr::lookup const&,
+    gbfs::gbfs_routing_data&,
+    elevators const*,
+    api::Place const& from,
+    api::Place const& to,
+    std::optional<std::string> from_geometry,
+    std::optional<std::string> to_geometry,
+    std::optional<std::string> trip_id,
+    api::ModeEnum,
+    bool wheelchair,
+    nigiri::unixtime_t start_time,
+    std::optional<nigiri::unixtime_t> end_time,
+    gbfs::gbfs_products_ref,
+    street_routing_cache_t&,
+    osr::bitvec<osr::node_idx_t>& blocked_mem,
+    nigiri::timetable const& tt,
+    nigiri::unixtime_t const now =
+        std::chrono::time_point_cast<nigiri::i32_minutes>(*openapi::now()),
+    bool arrive_by = false,
+    std::chrono::seconds max = std::chrono::seconds{3600});
+
+api::Itinerary route(
+    osr::ways const&,
+    osr::lookup const&,
+    gbfs::gbfs_routing_data&,
+    elevators const*,
+    api::Place const& from,
+    api::Place const& to,
+    api::ModeEnum,
+    bool wheelchair,
+    nigiri::unixtime_t start_time,
+    std::optional<nigiri::unixtime_t> end_time,
+    gbfs::gbfs_products_ref,
+    street_routing_cache_t&,
+    osr::bitvec<osr::node_idx_t>& blocked_mem,
+    nigiri::timetable const& tt,
+    nigiri::unixtime_t const now =
+        std::chrono::time_point_cast<nigiri::i32_minutes>(*openapi::now()),
+    bool arrive_by = false,
+    std::chrono::seconds max = std::chrono::seconds{3600});
+
+struct flex_trip {
+  std::string from_geometry_;
+  std::string to_geometry_;
+  std::string trip_id_;
+  nigiri::duration_t waiting_time_;
+  nigiri::duration_t travel_difference_;
+};
+
+flex_trip get_flex_trip(nigiri::timetable const& tt,
+                        nigiri::unixtime_t const now,
+                        nigiri::unixtime_t const t,
+                        nigiri::duration_t const travel_time,
+                        geo::latlng const& from,
+                        geo::latlng const& to,
+                        bool const arrive_by);
 
 std::optional<osr::path> get_path(osr::ways const& w,
                                   osr::lookup const& l,

@@ -16,6 +16,8 @@
 #include "motis/endpoints/routing.h"
 #include "motis/import.h"
 
+// #define BENCHMARK ;
+
 using namespace motis;
 
 namespace json = boost::json;
@@ -73,6 +75,127 @@ auto const print_short = [](std::ostream& out, api::Itinerary const& j) {
 
 using namespace std::chrono_literals;
 
+auto const exec_benchmark = [](openapi::date_time_t now,
+                               geo::latlng from,
+                               geo::latlng to,
+                               openapi::date_time_t time,
+                               bool arriveBy,
+                               std::optional<osr::mode> direct,
+                               std::initializer_list<osr::mode> pretransit,
+                               std::initializer_list<osr::mode> posttransit) {
+  auto const c = config{
+      .osm_ = {"benchmark/"
+               "resources/australia/australia.osm.pbf"},
+      .timetable_ = {config::timetable{
+          .first_day_ = "2024-12-15",
+          .num_days_ = 363U,
+          .with_shapes_ = false,
+          .datasets_ =
+              {{"regular", {.path_ = "benchmark/resources/australia/gtfs.zip"}},
+               {"flex",
+                {.path_ = "benchmark/resources/australia/gtfs_flex.zip"}}}}},
+      .street_routing_ = true,
+      .osr_footpath_ = true,
+      .geocoding_ = true};
+
+  auto d = import(c, "benchmark/data-australia", true);
+
+  auto const routing = utl::init_from<ep::routing>(d).value();
+
+  openapi::now_test = now;
+
+  auto request_str = std::stringstream{};
+  request_str << "?fromPlace=" << from.lat_ << "," << from.lng_;
+  request_str << "&toPlace=" << to.lat_ << "," << to.lng_;
+  request_str << "&time=" << time;
+  request_str << "&arriveBy=" << (arriveBy ? "true" : "false");
+  request_str << "&timetableView=false" << "&useRoutedTransfers=false";
+  request_str << "&directModes=";
+  if (direct.has_value()) {
+    request_str << to_mode(direct.value());
+  }
+  request_str << "&preTransitModes=";
+  for (auto i = 0U; i < pretransit.size(); i++) {
+    request_str << to_mode(*(pretransit.begin() + i));
+    if (i < pretransit.size() - 1) {
+      request_str << ",";
+    }
+  }
+  request_str << "&postTransitModes=";
+  for (auto i = 0U; i < posttransit.size(); i++) {
+    request_str << to_mode(*(posttransit.begin() + i));
+    if (i < posttransit.size() - 1) {
+      request_str << ",";
+    }
+  }
+  request_str << "&maxDirectTime=10800";
+
+  UTL_START_TIMING(timer);
+  auto plan_response = routing(request_str.str());
+  UTL_STOP_TIMING(timer);
+  return UTL_TIMING_MS(timer);
+};
+
+TEST(motis, motis_switzerland_request_1_car) {
+  std::cout << "Duration (ms): "
+            << exec_benchmark(
+                   date::sys_days{date::January / 05 / 2025} + 8h + 30min,
+                   geo::latlng{47.41064282478368, 9.539225124003337},
+                   geo::latlng{47.4485994339791, 9.571887527087142},
+                   date::sys_days{date::January / 05 / 2025} + 20h + 0min,
+                   false, osr::mode::kCar, {}, {});
+}
+
+TEST(motis, motis_switzerland_request_1_flex) {
+  std::cout << "Duration (ms): "
+            << exec_benchmark(
+                   date::sys_days{date::January / 05 / 2025} + 8h + 30min,
+                   geo::latlng{47.41064282478368, 9.539225124003337},
+                   geo::latlng{47.4485994339791, 9.571887527087142},
+                   date::sys_days{date::January / 05 / 2025} + 20h + 0min,
+                   false, osr::mode::kFlex, {}, {});
+}
+
+TEST(motis, motis_switzerland_request_2_car) {
+  std::cout << "Duration (ms): "
+            << exec_benchmark(
+                   date::sys_days{date::January / 03 / 2025} + 8h + 30min,
+                   geo::latlng{46.77859375171761, 6.647990839623077},
+                   geo::latlng{46.722300906957145, 6.531654831253093},
+                   date::sys_days{date::January / 03 / 2025} + 22h + 30min,
+                   false, std::nullopt, {osr::mode::kCar}, {osr::mode::kCar});
+}
+
+TEST(motis, motis_switzerland_request_2_flex) {
+  std::cout << "Duration (ms): "
+            << exec_benchmark(
+                   date::sys_days{date::January / 03 / 2025} + 8h + 30min,
+                   geo::latlng{46.77859375171761, 6.647990839623077},
+                   geo::latlng{46.722300906957145, 6.531654831253093},
+                   date::sys_days{date::January / 03 / 2025} + 22h + 30min,
+                   false, std::nullopt, {osr::mode::kFlex}, {osr::mode::kFlex});
+}
+
+TEST(motis, motis_switzerland_request_3_car) {
+  std::cout << "Duration (ms): "
+            << exec_benchmark(
+                   date::sys_days{date::February / 03 / 2025} + 8h + 30min,
+                   geo::latlng{46.633283638420636, 8.596274873067557},
+                   geo::latlng{47.332279891568135, 9.413500965679333},
+                   date::sys_days{date::February / 04 / 2025} + 8h + 40min,
+                   false, std::nullopt, {osr::mode::kCar}, {osr::mode::kCar});
+}
+
+TEST(motis, motis_switzerland_request_3_flex) {
+  std::cout << "Duration (ms): "
+            << exec_benchmark(
+                   date::sys_days{date::February / 03 / 2025} + 8h + 30min,
+                   geo::latlng{46.633283638420636, 8.596274873067557},
+                   geo::latlng{47.332279891568135, 9.413500965679333},
+                   date::sys_days{date::February / 04 / 2025} + 8h + 40min,
+                   false, std::nullopt, {osr::mode::kFlex}, {osr::mode::kFlex});
+}
+
 TEST(motis, switzerland) {
   auto const c = config{
       .osm_ = {"benchmark/"
@@ -81,21 +204,16 @@ TEST(motis, switzerland) {
           .first_day_ = "2024-12-15",
           .num_days_ = 363U,
           .with_shapes_ = false,
-          .datasets_ =
-              {{"regular",
-                {.path_ =
-                     "benchmark/resources/switzerland/gtfs.zip"}},
-               {"flex",
-                {.path_ = "benchmark/resources/switzerland/"
-                          "gtfs_flex.zip"}}}}},
+          .datasets_ = {{"regular",
+                         {.path_ = "benchmark/resources/switzerland/gtfs.zip"}},
+                        {"flex",
+                         {.path_ = "benchmark/resources/switzerland/"
+                                   "gtfs_flex.zip"}}}}},
       .street_routing_ = true,
       .osr_footpath_ = true,
       .geocoding_ = true};
 
-  auto d = import(
-      c,
-      "benchmark/data-switzerland",
-      true);
+  auto d = import(c, "benchmark/data-switzerland", true);
 
   auto const routing = utl::init_from<ep::routing>(d).value();
 
@@ -104,9 +222,7 @@ TEST(motis, switzerland) {
    *  Distance:       ca. 5km
    */
   // clang-format on
-  std::cout << "----------direct Car----------" << std::endl;
   openapi::now_test = date::sys_days{date::January / 05 / 2025} + 8h + 30min;
-  UTL_START_TIMING(timer);
   auto plan_response = routing(
       "?fromPlace=47.41064282478368,9.539225124003337"
       "&toPlace=47.4485994339791,9.571887527087142"
@@ -116,29 +232,31 @@ TEST(motis, switzerland) {
       "&directModes=CAR"
       "&preTransitModes="
       "&postTransitModes=");
-  UTL_STOP_TIMING(timer);
   auto ss = std::stringstream{};
   for (auto const& j : plan_response.direct_) {
     print_short(ss, j);
   }
 
-  EXPECT_EQ(R"()", ss.str());
-  std::cout << "Duration (ms): " << UTL_TIMING_MS(timer) << std::endl;
-
+  EXPECT_EQ(
+      R"(date=2025-01-05, start=20:00, end=20:20, duration=00:20, transfers=0, legs=[
+    (from=- geometry=- [track=-, scheduled_track=-, level=0], to=- geometry=- [track=-, scheduled_track=-, level=0], start=2025-01-05 20:00, mode="CAR", trip="-", end=2025-01-05 20:20)
+])",
+      ss.str());
 
   // clang-format off
   /*  Test Case: Direct Travel by Flex
    *  From-Geometry:  odv_10
    *  To-Geometry:    odv_12
-   *  From-Trips:     odv_j25_3_1_10_10_14-_24, odv_j25_3_1_10_10_56-_25, odv_j25_3_1_10_10_77+_26, odv_j25_3_3_10_13_77+_29, odv_j25_3_4_10_12_77+_28
-   *  To-Trips:       odv_j25_3_2_12_12_77+_27, odv_j25_3_4_10_12_77+_28, odv_j25_3_5_12_13_77+_29
+   *  From-Trips:     odv_j25_3_1_10_10_14-_24, odv_j25_3_1_10_10_56-_25,
+   odv_j25_3_1_10_10_77+_26, odv_j25_3_3_10_13_77+_29,
+   odv_j25_3_4_10_12_77+_28
+   *  To-Trips:       odv_j25_3_2_12_12_77+_27, odv_j25_3_4_10_12_77+_28,
+   odv_j25_3_5_12_13_77+_29
    *  Possible Trips: odv_j25_3_4_10_12_77+_28
    *  Distance:       ca. 5km
    */
   // clang-format on
-  std::cout << "----------direct Flex----------" << std::endl;
   openapi::now_test = date::sys_days{date::January / 05 / 2025} + 8h + 30min;
-  UTL_START_TIMING(timer2);
   plan_response = routing(
       "?fromPlace=47.41064282478368,9.539225124003337"
       "&toPlace=47.4485994339791,9.571887527087142"
@@ -148,23 +266,23 @@ TEST(motis, switzerland) {
       "&directModes=FLEX"
       "&preTransitModes="
       "&postTransitModes=");
-  UTL_STOP_TIMING(timer2);
   ss = std::stringstream{};
   for (auto const& j : plan_response.direct_) {
     print_short(ss, j);
   }
 
-  EXPECT_EQ(R"()", ss.str());
-  std::cout << "Duration (ms): " << UTL_TIMING_MS(timer2) << std::endl;
+  EXPECT_EQ(
+      R"(date=2025-01-05, start=20:00, end=21:20, duration=01:20, transfers=0, legs=[
+    (from=- geometry=odv_10 [track=-, scheduled_track=-, level=0], to=- geometry=odv_12 [track=-, scheduled_track=-, level=0], start=2025-01-05 21:00, mode="FLEX", trip="odv_j25_3_4_10_12_77+_28", end=2025-01-05 21:20)
+])",
+      ss.str());
 
   // clang-format off
   /*  Test Case:      Trip with many stops (by Car as reference)
    *  Distance:       ca. 10km
    */
   // clang-format on
-  std::cout << "----------010km Car----------" << std::endl;
   openapi::now_test = date::sys_days{date::January / 03 / 2025} + 8h + 30min;
-  UTL_START_TIMING(timer3);
   plan_response = routing(
       "?fromPlace=46.77859375171761,6.647990839623077"
       "&toPlace=46.722300906957145,6.531654831253093"
@@ -174,15 +292,12 @@ TEST(motis, switzerland) {
       "&directModes="
       "&preTransitModes=CAR"
       "&postTransitModes=CAR");
-  UTL_STOP_TIMING(timer3);
   ss = std::stringstream{};
   for (auto const& j : plan_response.itineraries_) {
     print_short(ss, j);
   }
 
   EXPECT_EQ(R"()", ss.str());
-  std::cout << "Duration (ms): " << UTL_TIMING_MS(timer3) << std::endl;
-
 
   // clang-format off
   /*  Test Case:      Trip with many stops
@@ -193,9 +308,7 @@ TEST(motis, switzerland) {
    *  Distance:       ca. 10km
    */
   // clang-format on
-  std::cout << "----------010km Flex----------" << std::endl;
   openapi::now_test = date::sys_days{date::January / 03 / 2025} + 8h + 30min;
-  UTL_START_TIMING(timer4);
   plan_response = routing(
       "?fromPlace=46.77859375171761,6.647990839623077"
       "&toPlace=46.722300906957145,6.531654831253093"
@@ -205,14 +318,18 @@ TEST(motis, switzerland) {
       "&directModes="
       "&preTransitModes=FLEX"
       "&postTransitModes=FLEX");
-  UTL_STOP_TIMING(timer4);
   ss = std::stringstream{};
   for (auto const& j : plan_response.itineraries_) {
     print_short(ss, j);
   }
 
-  EXPECT_EQ(R"()", ss.str());
-  std::cout << "Duration (ms): " << UTL_TIMING_MS(timer4) << std::endl;
+  EXPECT_EQ(
+      R"(date=2025-01-03, start=22:51, end=23:08, duration=00:38, transfers=0, legs=[
+    (from=- geometry=odv_27 [track=-, scheduled_track=-, level=0], to=regular_8504774:0:C geometry=odv_27 [track=-, scheduled_track=-, level=0], start=2025-01-03 22:51, mode="FLEX", trip="odv_j25_2_15_27_27_56_24", end=2025-01-03 22:54),
+    (from=regular_8504774:0:C geometry=- [track=-, scheduled_track=-, level=0], to=regular_8579294 geometry=- [track=-, scheduled_track=-, level=0], start=2025-01-03 22:54, mode="BUS", trip="20250103_23:54_regular_225.TA.92-603-j25-1.7.R", end=2025-01-03 22:55),
+    (from=regular_8579294 geometry=odv_27 [track=-, scheduled_track=-, level=0], to=- geometry=odv_27 [track=-, scheduled_track=-, level=0], start=2025-01-03 22:55, mode="FLEX", trip="odv_j25_2_15_27_27_56_24", end=2025-01-03 23:08)
+])",
+      ss.str());
 
   // clang-format off
   /*  Test Case:      Trip with few stops (by Car as reference)
@@ -221,9 +338,7 @@ TEST(motis, switzerland) {
    *  Distance:       ca. 100km
    */
   // clang-format on
-  std::cout << "----------100km Car----------" << std::endl;
   openapi::now_test = date::sys_days{date::February / 03 / 2025} + 8h + 30min;
-  UTL_START_TIMING(timer5);
   plan_response = routing(
       "?fromPlace=46.633283638420636,8.596274873067557"
       "&toPlace=47.332279891568135,9.413500965679333"
@@ -233,14 +348,24 @@ TEST(motis, switzerland) {
       "&directModes="
       "&preTransitModes=CAR"
       "&postTransitModes=CAR");
-  UTL_STOP_TIMING(timer5);
   ss = std::stringstream{};
   for (auto const& j : plan_response.itineraries_) {
     print_short(ss, j);
   }
 
-  EXPECT_EQ(R"()", ss.str());
-  std::cout << "Direct Duration (ms): " << UTL_TIMING_MS(timer5) << std::endl;
+  EXPECT_EQ(
+      R"(date=2025-02-04, start=08:41, end=12:03, duration=03:23, transfers=3, legs=[
+    (from=- geometry=- [track=-, scheduled_track=-, level=0], to=regular_8573106:0:A geometry=- [track=-, scheduled_track=-, level=0], start=2025-02-04 08:41, mode="CAR", trip="-", end=2025-02-04 08:46),
+    (from=regular_8573106:0:A geometry=- [track=-, scheduled_track=-, level=0], to=regular_8577386 geometry=- [track=-, scheduled_track=-, level=0], start=2025-02-04 08:46, mode="BUS", trip="20250204_09:46_regular_48.TA.92-401-j25-1.8.H", end=2025-02-04 09:25),
+    (from=regular_8577386 geometry=- [track=-, scheduled_track=-, level=0], to=regular_8505114:0:2 geometry=- [track=-, scheduled_track=-, level=0], start=2025-02-04 09:25, mode="WALK", trip="-", end=2025-02-04 09:29),
+    (from=regular_8505114:0:2 geometry=- [track=-, scheduled_track=-, level=0], to=regular_8505004:0:4 geometry=- [track=-, scheduled_track=-, level=0], start=2025-02-04 09:34, mode="REGIONAL_RAIL", trip="20250204_08:33_regular_14.TA.91-46-j25-1.8.R", end=2025-02-04 10:07),
+    (from=regular_8505004:0:4 geometry=- [track=-, scheduled_track=-, level=0], to=regular_8505004:0:6 geometry=- [track=-, scheduled_track=-, level=1], start=2025-02-04 10:07, mode="WALK", trip="-", end=2025-02-04 10:11),
+    (from=regular_8505004:0:6 geometry=- [track=-, scheduled_track=-, level=1], to=regular_8506290:0:1 geometry=- [track=-, scheduled_track=-, level=0], start=2025-02-04 10:16, mode="REGIONAL_RAIL", trip="20250204_10:39_regular_71.TA.91-VAE-j25-1.29.R", end=2025-02-04 11:46),
+    (from=regular_8506290:0:1 geometry=- [track=-, scheduled_track=-, level=0], to=regular_8578507:0:B geometry=- [track=-, scheduled_track=-, level=0], start=2025-02-04 11:46, mode="WALK", trip="-", end=2025-02-04 11:48),
+    (from=regular_8578507:0:B geometry=- [track=-, scheduled_track=-, level=0], to=regular_8588239 geometry=- [track=-, scheduled_track=-, level=0], start=2025-02-04 11:48, mode="BUS", trip="20250204_12:48_regular_41.TA.96-220-1-j25-1.6.R", end=2025-02-04 11:49),
+    (from=regular_8588239 geometry=- [track=-, scheduled_track=-, level=0], to=- geometry=- [track=-, scheduled_track=-, level=0], start=2025-02-04 11:49, mode="CAR", trip="-", end=2025-02-04 12:03)
+])",
+      ss.str());
 
   // clang-format off
   /*  Test Case:      Trip with few stops
@@ -251,9 +376,7 @@ TEST(motis, switzerland) {
    *  Distance:       ca. 100km
    */
   // clang-format on
-  std::cout << "----------100km Flex----------" << std::endl;
   openapi::now_test = date::sys_days{date::February / 03 / 2025} + 8h + 30min;
-  UTL_START_TIMING(timer6);
   plan_response = routing(
       "?fromPlace=46.633283638420636,8.596274873067557"
       "&toPlace=47.332279891568135,9.413500965679333"
@@ -263,12 +386,22 @@ TEST(motis, switzerland) {
       "&directModes="
       "&preTransitModes=FLEX"
       "&postTransitModes=FLEX");
-  UTL_STOP_TIMING(timer6);
   ss = std::stringstream{};
   for (auto const& j : plan_response.itineraries_) {
     print_short(ss, j);
   }
 
-  EXPECT_EQ(R"()", ss.str());
-  std::cout << "Duration (ms): " << UTL_TIMING_MS(timer6) << std::endl;
+  EXPECT_EQ(
+      R"(date=2025-02-04, start=08:47, end=12:14, duration=03:34, transfers=3, legs=[
+    (from=- geometry=odv_31 [track=-, scheduled_track=-, level=0], to=regular_8587429 geometry=odv_31 [track=-, scheduled_track=-, level=0], start=2025-02-04 08:47, mode="FLEX", trip="odv_j25_8_2_31_31_14-_1", end=2025-02-04 08:58),
+    (from=regular_8587429 geometry=- [track=-, scheduled_track=-, level=0], to=regular_8577386 geometry=- [track=-, scheduled_track=-, level=0], start=2025-02-04 08:58, mode="BUS", trip="20250204_09:46_regular_48.TA.92-401-j25-1.8.H", end=2025-02-04 09:25),
+    (from=regular_8577386 geometry=- [track=-, scheduled_track=-, level=0], to=regular_8505114:0:2 geometry=- [track=-, scheduled_track=-, level=0], start=2025-02-04 09:25, mode="WALK", trip="-", end=2025-02-04 09:29),
+    (from=regular_8505114:0:2 geometry=- [track=-, scheduled_track=-, level=0], to=regular_8505004:0:4 geometry=- [track=-, scheduled_track=-, level=0], start=2025-02-04 09:34, mode="REGIONAL_RAIL", trip="20250204_08:33_regular_14.TA.91-46-j25-1.8.R", end=2025-02-04 10:07),
+    (from=regular_8505004:0:4 geometry=- [track=-, scheduled_track=-, level=0], to=regular_8505004:0:6 geometry=- [track=-, scheduled_track=-, level=1], start=2025-02-04 10:07, mode="WALK", trip="-", end=2025-02-04 10:11),
+    (from=regular_8505004:0:6 geometry=- [track=-, scheduled_track=-, level=1], to=regular_8506290:0:1 geometry=- [track=-, scheduled_track=-, level=0], start=2025-02-04 10:16, mode="REGIONAL_RAIL", trip="20250204_10:39_regular_71.TA.91-VAE-j25-1.29.R", end=2025-02-04 11:46),
+    (from=regular_8506290:0:1 geometry=- [track=-, scheduled_track=-, level=0], to=regular_8578507:0:B geometry=- [track=-, scheduled_track=-, level=0], start=2025-02-04 11:46, mode="WALK", trip="-", end=2025-02-04 11:48),
+    (from=regular_8578507:0:B geometry=- [track=-, scheduled_track=-, level=0], to=regular_8506775 geometry=- [track=-, scheduled_track=-, level=0], start=2025-02-04 11:48, mode="BUS", trip="20250204_12:48_regular_41.TA.96-220-1-j25-1.6.R", end=2025-02-04 12:04),
+    (from=regular_8506775 geometry=odv_29 [track=-, scheduled_track=-, level=0], to=- geometry=odv_29 [track=-, scheduled_track=-, level=0], start=2025-02-04 12:04, mode="FLEX", trip="odv_j25_1_1_29_29_14-_1", end=2025-02-04 12:14)
+])",
+      ss.str());
 }

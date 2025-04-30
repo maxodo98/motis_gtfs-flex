@@ -206,7 +206,7 @@ api::Itinerary journey_to_response(osr::ways const* w,
                       tt.trip_id_strings_[tt.trip_ids_[x.trip_][0]].end()),
                   api::ModeEnum::FLEX, wheelchair, j_leg.dep_time_,
                   j_leg.arr_time_, gbfs::gbfs_products_ref{}, cache,
-                  blocked_mem, true,
+                  blocked_mem, nigiri::timetable{}, nigiri::unixtime_t{}, false,
                   std::chrono::duration_cast<std::chrono::seconds>(
                       j_leg.arr_time_ - j_leg.dep_time_) +
                       std::chrono::minutes{5}));

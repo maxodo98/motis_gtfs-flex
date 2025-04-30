@@ -1,7 +1,7 @@
 [nigiri]
   url=git@github.com:maxodo98/nigiri_gtfs-flex.git
   branch=flex_reconstruct
-  commit=617d59f323f16e9f66419812898380aa72032fd0
+  commit=2c63758ac8144098166d1057de322eb9c9e33da2
 [cista]
   url=git@github.com:felixguendling/cista.git
   branch=master
@@ -9,7 +9,7 @@
 [osr]
   url=git@github.com:maxodo98/osr_gtfs_flex.git
   branch=master
-  commit=f3df77606476fefbb6b7eb4854c8f4a2e28e9f80
+  commit=7f36a9e08f09be7a8a63fe0b9ff82af3f482d550
 [utl]
   url=git@github.com:motis-project/utl.git
   branch=master

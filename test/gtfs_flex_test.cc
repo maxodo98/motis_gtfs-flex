@@ -673,8 +673,8 @@ TEST(motis, gtfs_flex_direct_depature) {
   }
 
   EXPECT_EQ(
-      R"(date=2025-01-02, start=08:00, end=08:02, duration=01:02, transfers=0, legs=[
-    (from=- geometry=Startbereich [track=-, scheduled_track=-, level=0], to=- geometry=Zielbereich [track=-, scheduled_track=-, level=0], start=2025-01-02 08:00, mode="FLEX", trip="flex_3", end=2025-01-02 08:02)
+      R"(date=2025-01-02, start=07:00, end=08:01, duration=01:01, transfers=0, legs=[
+    (from=- geometry=Startbereich [track=-, scheduled_track=-, level=0], to=- geometry=Zielbereich [track=-, scheduled_track=-, level=0], start=2025-01-02 08:00, mode="FLEX", trip="flex_3", end=2025-01-02 08:01)
 ])",
       ss.str());
 }
@@ -718,7 +718,7 @@ TEST(motis, gtfs_flex_direct_arrival) {
   }
 
   EXPECT_EQ(
-      R"(date=2025-01-02, start=08:28, end=08:30, duration=00:32, transfers=0, legs=[
+      R"(date=2025-01-02, start=08:28, end=09:00, duration=00:31, transfers=0, legs=[
     (from=- geometry=Startbereich [track=-, scheduled_track=-, level=0], to=- geometry=Zielbereich [track=-, scheduled_track=-, level=0], start=2025-01-02 08:28, mode="FLEX", trip="flex_3", end=2025-01-02 08:30)
 ])",
       ss.str());
@@ -741,7 +741,6 @@ TEST(motis, gtfs_flex_simple_offsets_departure) {
       .geocoding_ = false,
       .reverse_geocoding_ = false};
   auto d = import(c, "test/data", true);
-  auto const max = osr::cost_t{900};
 
   // Einfachste Fahrt mit erster und letzter Meile
   auto const routing = utl::init_from<ep::routing>(d).value();
@@ -788,7 +787,6 @@ TEST(motis, gtfs_flex_simple_offsets_arrival) {
       .geocoding_ = false,
       .reverse_geocoding_ = false};
   auto d = import(c, "test/data", true);
-  auto const max = osr::cost_t{900};
 
   // Einfachste Fahrt mit erster und letzter Meile
   auto const routing = utl::init_from<ep::routing>(d).value();
@@ -836,7 +834,6 @@ TEST(motis, gtfs_flex_complex_mixed_offsets) {
       .geocoding_ = false,
       .reverse_geocoding_ = false};
   auto d = import(c, "test/data", true);
-  auto const max = osr::cost_t{900};
 
   auto const routing = utl::init_from<ep::routing>(d).value();
 
@@ -909,7 +906,6 @@ TEST(motis, gtfs_flex_complex_booking_times) {
       .geocoding_ = false,
       .reverse_geocoding_ = false};
   auto d = import(c, "test/data", true);
-  auto const max = osr::cost_t{900};
 
   auto const routing = utl::init_from<ep::routing>(d).value();
 
