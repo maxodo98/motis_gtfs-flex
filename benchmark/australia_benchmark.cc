@@ -408,7 +408,7 @@ TEST(motis, australia) {
 
   EXPECT_EQ(
       R"(date=2025-03-19, start=21:02, end=21:19, duration=00:19, transfers=0, legs=[
-    (from=- geometry=area_400b [track=-, scheduled_track=-, level=0], to=regular_213444 geometry=area_400b [track=-, scheduled_track=-, level=0], start=2025-03-19 21:02, mode="FLEX", trip="1.D400.1.2", end=2025-03-19 21:06),
+    (from=- geometry=area_400c [track=-, scheduled_track=-, level=0], to=regular_213444 geometry=area_400c [track=-, scheduled_track=-, level=0], start=2025-03-19 21:02, mode="FLEX", trip="1.D400.1.4", end=2025-03-19 21:06),
     (from=regular_213444 geometry=- [track=-, scheduled_track=-, level=0], to=regular_213121 geometry=- [track=-, scheduled_track=-, level=0], start=2025-03-19 21:06, mode="BUS", trip="20250320_08:03_regular_2349567", end=2025-03-19 21:17),
     (from=regular_213121 geometry=- [track=-, scheduled_track=-, level=0], to=- geometry=- [track=-, scheduled_track=-, level=0], start=2025-03-19 21:17, mode="WALK", trip="-", end=2025-03-19 21:19)
 ])",
