@@ -18,7 +18,6 @@
 #include "motis/endpoints/routing.h"
 #include "motis/import.h"
 
-// #define BENCHMARK ;
 
 using namespace motis;
 
@@ -132,12 +131,10 @@ auto const exec_benchmark = [](openapi::date_time_t now,
   }
   request_str << "&maxDirectTime=10800";
 
-  std::cout << request_str.str() << std::endl;
-
   UTL_START_TIMING(timer);
   auto plan_response = routing(request_str.str());
   UTL_STOP_TIMING(timer);
-  return UTL_TIMING_MS(timer);
+  return UTL_TIMING_US(timer);
 };
 
 TEST(motis, motis_australia_request_1_flex) {

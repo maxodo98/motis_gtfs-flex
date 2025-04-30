@@ -41,6 +41,8 @@
 #include "motis/timetable/time_conv.h"
 #include "motis/update_rtt_td_footpaths.h"
 
+// #define BENCHMARK
+
 namespace n = nigiri;
 using namespace std::chrono_literals;
 
@@ -419,7 +421,7 @@ td_offsets_t routing::get_flex_offsets(osr::location const& pos,
   std::cout << "\tactual num stops: " << path_cache.size() << std::endl;
 
   std::cout << "\tDuration: flex offset creation: "
-            << UTL_TIMING_MS(timer_flex_offsets) << std::endl;
+            << UTL_TIMING_US(timer_flex_offsets) << std::endl;
 #endif
   return flex_offsets;
 }
@@ -539,7 +541,7 @@ std::vector<n::routing::offset> routing::get_offsets(
 #ifdef BENCHMARK
   UTL_STOP_TIMING(timer_offsets);
   std::cout << "\tDuration: regular offsets creation: "
-            << UTL_TIMING_MS(timer_offsets) << std::endl;
+            << UTL_TIMING_US(timer_offsets) << std::endl;
 #endif
   return offsets;
 }

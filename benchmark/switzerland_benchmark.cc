@@ -16,8 +16,6 @@
 #include "motis/endpoints/routing.h"
 #include "motis/import.h"
 
-// #define BENCHMARK ;
-
 using namespace motis;
 
 namespace json = boost::json;
@@ -133,11 +131,11 @@ auto const exec_benchmark = [](openapi::date_time_t now,
   UTL_START_TIMING(timer);
   auto plan_response = routing(request_str.str());
   UTL_STOP_TIMING(timer);
-  return UTL_TIMING_MS(timer);
+  return UTL_TIMING_US(timer);
 };
 
 TEST(motis, motis_switzerland_request_1_car) {
-  std::cout << "Duration (ms): "
+  std::cout << "Duration (us): "
             << exec_benchmark(
                    date::sys_days{date::January / 05 / 2025} + 8h + 30min,
                    geo::latlng{47.41064282478368, 9.539225124003337},
@@ -147,7 +145,7 @@ TEST(motis, motis_switzerland_request_1_car) {
 }
 
 TEST(motis, motis_switzerland_request_1_flex) {
-  std::cout << "Duration (ms): "
+  std::cout << "Duration (us): "
             << exec_benchmark(
                    date::sys_days{date::January / 05 / 2025} + 8h + 30min,
                    geo::latlng{47.41064282478368, 9.539225124003337},
@@ -157,7 +155,7 @@ TEST(motis, motis_switzerland_request_1_flex) {
 }
 
 TEST(motis, motis_switzerland_request_2_car) {
-  std::cout << "Duration (ms): "
+  std::cout << "Duration (us): "
             << exec_benchmark(
                    date::sys_days{date::January / 03 / 2025} + 8h + 30min,
                    geo::latlng{46.77859375171761, 6.647990839623077},
@@ -167,7 +165,7 @@ TEST(motis, motis_switzerland_request_2_car) {
 }
 
 TEST(motis, motis_switzerland_request_2_flex) {
-  std::cout << "Duration (ms): "
+  std::cout << "Duration (us): "
             << exec_benchmark(
                    date::sys_days{date::January / 03 / 2025} + 8h + 30min,
                    geo::latlng{46.77859375171761, 6.647990839623077},
@@ -177,7 +175,7 @@ TEST(motis, motis_switzerland_request_2_flex) {
 }
 
 TEST(motis, motis_switzerland_request_3_car) {
-  std::cout << "Duration (ms): "
+  std::cout << "Duration (us): "
             << exec_benchmark(
                    date::sys_days{date::February / 03 / 2025} + 8h + 30min,
                    geo::latlng{46.633283638420636, 8.596274873067557},
@@ -187,7 +185,7 @@ TEST(motis, motis_switzerland_request_3_car) {
 }
 
 TEST(motis, motis_switzerland_request_3_flex) {
-  std::cout << "Duration (ms): "
+  std::cout << "Duration (us): "
             << exec_benchmark(
                    date::sys_days{date::February / 03 / 2025} + 8h + 30min,
                    geo::latlng{46.633283638420636, 8.596274873067557},
